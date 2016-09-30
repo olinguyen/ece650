@@ -1,16 +1,19 @@
 #include <stdio.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
+#include <sys/types.h>
+#include <stdbool.h>
 
 #define MSGSZ     128
 #define MAX_BUFFER_SIZE 1024
 
 typedef struct msgbuf {
     long    mtype;
-    char    mtext[MSGSZ];
     int     buffer[MAX_BUFFER_SIZE];
-    int     remaining;
+    int     consume_count;
     int     produce_count;
+    int     remaining;
+    bool    consumed;
 } message_buf;
 
 int main(int argc, char** argv)
@@ -19,30 +22,45 @@ int main(int argc, char** argv)
   key_t producer_key;
   message_buf  rbuf;
 
-  producer_key = 1200;
+  producer_key = 1338;
 
-  if ((msqid = msgget(producer_key, 0666 | IPC_CREAT)) < 0) {
-      perror("msgget");
-      exit(1);
-  }
-
-  if (msgrcv(msqid, &rbuf, sizeof(rbuf), 1, 0) < 0) {
-      perror("msgrcv");
-      exit(1);
-  }
-
-  printf("%d\n", rbuf.buffer[0]);
-  printf("%s\n", rbuf.mtext);
-
-  rbuf.remaining = 50;
-  int length = sizeof(rbuf) - sizeof(long);
-
-  if (msgsnd(msqid, &rbuf, length, IPC_NOWAIT) < 0) {
-    perror("msgsnd");
+  if ((msqid = msgget(producer_key, 0666)) < 0)
+  {
+    perror("msgget");
     exit(1);
   }
-  else
-    printf("Consumer Message: \"%d\" Sent\n", rbuf.remaining);
 
-  exit(0);
+  do
+  {
+    if (msgrcv(msqid, &rbuf, sizeof(rbuf), 1, 0) < 0)
+    {
+      perror("msgrcv");
+      exit(1);
+    }
+    else
+    {
+      rbuf.consume_count += rbuf.produce_count;
+      printf("...consumer received %d: ", rbuf.produce_count);
+      for (int i = 0; i < rbuf.produce_count; ++i)
+      {
+        printf("%d ", rbuf.buffer[i]);
+      }
+      printf("\n");
+    }
+
+    rbuf.consumed = 1;
+    int length = sizeof(rbuf) - sizeof(long);
+
+    if (msgsnd(msqid, &rbuf, length, IPC_NOWAIT) < 0)
+    {
+      perror("msgsnd");
+      exit(1);
+    }
+    else
+    {
+    }
+  }
+  while (rbuf.remaining > 0);
+
+  return 0;
 }

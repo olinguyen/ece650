@@ -2,10 +2,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <stdbool.h>
 
 #include <pthread.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
+#include <sys/wait.h>
 
 #define MAX_BUFFER_SIZE 1024
 int buffer[MAX_BUFFER_SIZE];
@@ -19,10 +22,11 @@ void producer_consumer_process(int n, int b);
 #define MSGSZ     128
 typedef struct msgbuf {
     long    mtype;
-    char    mtext[MSGSZ];
     int     buffer[MAX_BUFFER_SIZE];
-    int     remaining;
+    int     consume_count;
     int     produce_count;
+    int     remaining;
+    bool    consumed;
 } message_buf;
 
 typedef struct
@@ -128,41 +132,67 @@ void producer_consumer_process(int n, int b)
 	else
 	{
 		printf("Producer process started!\n");
+    sleep(1);
+    int status;
+
     int msqid;
     int msgflg = IPC_CREAT | 0666;
     key_t producer_key;
     message_buf sbuf;
     size_t buf_length;
 
-    producer_key = 1200;
+    producer_key = 1338;
 
-    if ((msqid = msgget(producer_key, msgflg )) < 0) {
-        perror("msgget");
-        exit(1);
+    if ((msqid = msgget(producer_key, msgflg )) < 0)
+    {
+      perror("msgget");
+      exit(1);
     }
 
     sbuf.mtype = 1;
+    sbuf.produce_count = 0;
+    sbuf.consume_count = 0;
+    sbuf.consumed = 0;
     sbuf.remaining = n;
-    sbuf.buffer[0] = 99;
 
-    (void) strcpy(sbuf.mtext, "Did you get this?");
-    buf_length = sizeof(sbuf) - sizeof(long);
+    while (sbuf.remaining > 0)
+    {
+      sbuf.produce_count = sbuf.remaining > b ? b : sbuf.remaining;
 
-    /*
-     * Send a message.
-     */
-    if (msgsnd(msqid, &sbuf, buf_length, IPC_NOWAIT) < 0) {
+      // generate n random numbers
+      for (int i = 0; i < sbuf.produce_count; ++i)
+      {
+        sbuf.buffer[i] = rand() % 10;
+      }
+
+      sbuf.remaining -= sbuf.produce_count;
+      sbuf.consumed = 0;
+
+      buf_length = sizeof(sbuf) - sizeof(long);
+
+      if (msgsnd(msqid, &sbuf, buf_length, IPC_NOWAIT) < 0)
+      {
         perror("msgsnd");
         exit(1);
-    }
-    else
-      printf("Message: \"%d\" Sent\n", sbuf.buffer[0]);
+      }
+      else
+      {
+        printf("...producer sent %d: ", sbuf.produce_count);
+        for (int i = 0; i < sbuf.produce_count; ++i)
+        {
+          printf("%d ", sbuf.buffer[i]);
+        }
+        printf("\n");
+      }
 
-    printf("...producer receiving from consumer\n");
-    if (msgrcv(msqid, &sbuf, sizeof(sbuf), 1, 0) < 0) {
-      perror("msgrcv");
-      exit(1);
+      if (msgrcv(msqid, &sbuf, sizeof(sbuf), 1, 0) < 0)
+      {
+        perror("msgrcv");
+        exit(1);
+      }
+      //while(!sbuf.consumed);
     }
-    printf("Producer received %d\n", sbuf.remaining);
+
+    wait(&status);
 	}
 }
