@@ -16,6 +16,12 @@ void* ProducerThread(void *a);
 
 void producer_consumer_process(int n, int b);
 
+#define MSGSZ     128
+typedef struct msgbuf {
+    long    mtype;
+    char    mtext[MSGSZ];
+} message_buf;
+
 typedef struct
 {
 	int* buffer;
@@ -43,14 +49,15 @@ int main(int argc, char** argv)
 		gettimeofday(&start, NULL);
 
 		/* Initialize system */
-		producer_consumer_thread(n, b);
+//		producer_consumer_thread(n, b);
+		producer_consumer_process(n, b);
 
 		gettimeofday(&end, NULL);
-		printf("Time to initialize system: <%.4f>\n", 
+		printf("Time to initialize system: <%.4f>\n",
 					((end.tv_sec + end.tv_usec / 1000000.0)
 				- (start.tv_sec + start.tv_usec / 1000000.0)));
 	}
-  
+
   return 0;
 }
 
@@ -62,7 +69,7 @@ void producer_consumer_thread(int n, int b)
 	sharedmem.buffer_size = b;
 	sharedmem.buffer = buffer;
 	sharedmem.n = n;
-		
+
 	pthread_t consumer_id, producer_id;
 	pthread_create(&producer_id, NULL, ProducerThread, (void*)&sharedmem);
 	pthread_create(&consumer_id, NULL, ConsumerThread, (void*)&sharedmem);
@@ -80,9 +87,9 @@ void* ProducerThread(void *a)
 	{
 		while(sharedmem->produce_count - sharedmem->consume_count == sharedmem->buffer_size);
 		sharedmem->buffer[sharedmem->produce_count % sharedmem->buffer_size] = rand() % 10;
-		
+
 		printf("...%d Produced:%d\n", sharedmem->produce_count, sharedmem->buffer[sharedmem->produce_count % sharedmem->buffer_size]);
-		
+
 		++sharedmem->produce_count;
 		--sharedmem->n;
 	}
@@ -92,14 +99,14 @@ void* ConsumerThread(void *a)
 {
 	SharedMemory* sharedmem = (SharedMemory*)a;
 	printf("Consumer thread started!\n");
-	
+
 	while(sharedmem->n > 0)
 	{
 		while(sharedmem->produce_count - sharedmem->consume_count == 0);
-		
+
 		int consumed = sharedmem->buffer[sharedmem->consume_count % sharedmem->buffer_size];
 		printf("...%d Consumed: %d\n", sharedmem->consume_count, consumed);
-		
+
 		++sharedmem->consume_count;
 	}
 }
@@ -107,36 +114,103 @@ void* ConsumerThread(void *a)
 void producer_consumer_process(int n, int b)
 {
 
+
 	int pid = fork();
 
 	if (pid == 0)
 	{
-		printf("Consumer process started\n!");
+    char *argv[3] = {"Command-line", ".", NULL};
+
+		printf("Consumer process started!\n");
+    execvp("./receive", argv);
+    /*
+		SharedMemory msg;
 		key_t key = 1234;
 		int msqid;
 
-		if ((msqid= msgget(key, 0666)) < 0)
-		{	
+		printf("...getting message queue\n");
+		if ((msqid = msgget(key, 0666)) < 0)
+		{
 			perror("msgget");
 			exit(1);
 		}
-		
-		if (msgrcv(msqid, struct, MAX_BUFFER_SIZE, 1, 0) < 0)
+
+		printf("...receiving message\n");
+		if (msgrcv(msqid, &msg, MAX_BUFFER_SIZE, 1, 0) < 0)
 		{
 			perror("msgrcv");
 			exit(1);
 		}
+		else
+		{
+			printf("...Consumed %d\n", msg.buffer[0]);
+		}
+    */
 	}
 	else
 	{
+		printf("Producer process started!\n");
+    int msqid;
+    int msgflg = IPC_CREAT | 0666;
+    key_t key;
+    message_buf sbuf;
+    size_t buf_length;
+
+    key = 1234;
+
+    if ((msqid = msgget(key, msgflg )) < 0) {
+        perror("msgget");
+        exit(1);
+    }
+
+    sbuf.mtype = 1;
+
+    (void) strcpy(sbuf.mtext, "Did you get this?");
+    buf_length = strlen(sbuf.mtext) + 1 ;
+
+    /*
+     * Send a message.
+     */
+    if (msgsnd(msqid, &sbuf, buf_length, IPC_NOWAIT) < 0) {
+        perror("msgsnd");
+        exit(1);
+    }
+   else
+      printf("Message: \"%s\" Sent\n", sbuf.mtext);
+
+    /*
+		SharedMemory msg =
+		{
+			.buffer = buffer,
+			.buffer_size = b,
+			.n = n,
+			.mtype = 1,
+		};
+
 		key_t key = 1234;
 		int msgflg = IPC_CREAT | 0666;
 		int msqid;
 
+		msg.buffer[0] = 10;
+
 		if ((msqid= msgget(key, msgflg)) < 0)
-		{	
+		{
 			perror("msgget");
 			exit(1);
 		}
-	}	
+		else
+		{
+			if (msgsnd(msqid, &msg, 1, IPC_NOWAIT) < 0)
+			{
+				perror("msgsnd");
+				exit(1);
+			}
+			else
+			{
+				printf("...Produced: %d\n", msg.buffer[0]);
+			}
+		}
+    while(1);
+    */
+	}
 }

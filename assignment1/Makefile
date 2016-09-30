@@ -16,6 +16,12 @@ consumer: consumer.o
 producer: producer.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
+send: message_send.o
+	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
+
+receive: message_rec.o
+	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
+
 .PHONY: clean
 
 clean:
