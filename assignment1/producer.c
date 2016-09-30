@@ -20,6 +20,9 @@ void producer_consumer_process(int n, int b);
 typedef struct msgbuf {
     long    mtype;
     char    mtext[MSGSZ];
+    int     buffer[MAX_BUFFER_SIZE];
+    int     remaining;
+    int     produce_count;
 } message_buf;
 
 typedef struct
@@ -113,8 +116,6 @@ void* ConsumerThread(void *a)
 
 void producer_consumer_process(int n, int b)
 {
-
-
 	int pid = fork();
 
 	if (pid == 0)
@@ -122,51 +123,30 @@ void producer_consumer_process(int n, int b)
     char *argv[3] = {"Command-line", ".", NULL};
 
 		printf("Consumer process started!\n");
-    execvp("./receive", argv);
-    /*
-		SharedMemory msg;
-		key_t key = 1234;
-		int msqid;
-
-		printf("...getting message queue\n");
-		if ((msqid = msgget(key, 0666)) < 0)
-		{
-			perror("msgget");
-			exit(1);
-		}
-
-		printf("...receiving message\n");
-		if (msgrcv(msqid, &msg, MAX_BUFFER_SIZE, 1, 0) < 0)
-		{
-			perror("msgrcv");
-			exit(1);
-		}
-		else
-		{
-			printf("...Consumed %d\n", msg.buffer[0]);
-		}
-    */
+    execvp("./consumer", argv);
 	}
 	else
 	{
 		printf("Producer process started!\n");
     int msqid;
     int msgflg = IPC_CREAT | 0666;
-    key_t key;
+    key_t producer_key;
     message_buf sbuf;
     size_t buf_length;
 
-    key = 1234;
+    producer_key = 1200;
 
-    if ((msqid = msgget(key, msgflg )) < 0) {
+    if ((msqid = msgget(producer_key, msgflg )) < 0) {
         perror("msgget");
         exit(1);
     }
 
     sbuf.mtype = 1;
+    sbuf.remaining = n;
+    sbuf.buffer[0] = 99;
 
     (void) strcpy(sbuf.mtext, "Did you get this?");
-    buf_length = strlen(sbuf.mtext) + 1 ;
+    buf_length = sizeof(sbuf) - sizeof(long);
 
     /*
      * Send a message.
@@ -175,42 +155,14 @@ void producer_consumer_process(int n, int b)
         perror("msgsnd");
         exit(1);
     }
-   else
-      printf("Message: \"%s\" Sent\n", sbuf.mtext);
+    else
+      printf("Message: \"%d\" Sent\n", sbuf.buffer[0]);
 
-    /*
-		SharedMemory msg =
-		{
-			.buffer = buffer,
-			.buffer_size = b,
-			.n = n,
-			.mtype = 1,
-		};
-
-		key_t key = 1234;
-		int msgflg = IPC_CREAT | 0666;
-		int msqid;
-
-		msg.buffer[0] = 10;
-
-		if ((msqid= msgget(key, msgflg)) < 0)
-		{
-			perror("msgget");
-			exit(1);
-		}
-		else
-		{
-			if (msgsnd(msqid, &msg, 1, IPC_NOWAIT) < 0)
-			{
-				perror("msgsnd");
-				exit(1);
-			}
-			else
-			{
-				printf("...Produced: %d\n", msg.buffer[0]);
-			}
-		}
-    while(1);
-    */
+    printf("...producer receiving from consumer\n");
+    if (msgrcv(msqid, &sbuf, sizeof(sbuf), 1, 0) < 0) {
+      perror("msgrcv");
+      exit(1);
+    }
+    printf("Producer received %d\n", sbuf.remaining);
 	}
 }
