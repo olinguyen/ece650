@@ -19,8 +19,8 @@ void* ProducerThread(void *a);
 
 void producer_consumer_process(int n, int b);
 
-#define MSGSZ     128
-typedef struct msgbuf {
+typedef struct msgbuf
+{
     long    mtype;
     int     buffer[MAX_BUFFER_SIZE];
     int     consume_count;
@@ -55,12 +55,11 @@ int main(int argc, char** argv)
 		struct timeval start, end;
 		gettimeofday(&start, NULL);
 
-		/* Initialize system */
 //		producer_consumer_thread(n, b);
 		producer_consumer_process(n, b);
 
 		gettimeofday(&end, NULL);
-		printf("Time to initialize system: <%.4f>\n",
+		printf("Time to execute: <%.4f>\n",
 					((end.tv_sec + end.tv_usec / 1000000.0)
 				- (start.tv_sec + start.tv_usec / 1000000.0)));
 	}
@@ -92,6 +91,7 @@ void* ProducerThread(void *a)
 
 	while (sharedmem->n > 0)
 	{
+    // Block if buffer is full
 		while(sharedmem->produce_count - sharedmem->consume_count == sharedmem->buffer_size);
 		sharedmem->buffer[sharedmem->produce_count % sharedmem->buffer_size] = rand() % 10;
 
@@ -109,6 +109,7 @@ void* ConsumerThread(void *a)
 
 	while(sharedmem->n > 0)
 	{
+    // block if everything was consumed
 		while(sharedmem->produce_count - sharedmem->consume_count == 0);
 
 		int consumed = sharedmem->buffer[sharedmem->consume_count % sharedmem->buffer_size];
@@ -132,6 +133,8 @@ void producer_consumer_process(int n, int b)
 	else
 	{
 		printf("Producer process started!\n");
+    // TODO: Find better way to wait for child process to start
+    // otherwise message is not received by child
     sleep(1);
     int status;
 
@@ -157,6 +160,7 @@ void producer_consumer_process(int n, int b)
 
     while (sbuf.remaining > 0)
     {
+      // send no more than buffer size
       sbuf.produce_count = sbuf.remaining > b ? b : sbuf.remaining;
 
       // generate n random numbers
@@ -185,12 +189,13 @@ void producer_consumer_process(int n, int b)
         printf("\n");
       }
 
+      // wait for notification that things were consumed
+      // this is blocking
       if (msgrcv(msqid, &sbuf, sizeof(sbuf), 1, 0) < 0)
       {
         perror("msgrcv");
         exit(1);
       }
-      //while(!sbuf.consumed);
     }
 
     wait(&status);

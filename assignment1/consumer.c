@@ -1,10 +1,10 @@
+#include <stdlib.h>
 #include <stdio.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/types.h>
 #include <stdbool.h>
 
-#define MSGSZ     128
 #define MAX_BUFFER_SIZE 1024
 
 typedef struct msgbuf {
@@ -32,6 +32,8 @@ int main(int argc, char** argv)
 
   do
   {
+    // get message from producer
+    // this is blocking
     if (msgrcv(msqid, &rbuf, sizeof(rbuf), 1, 0) < 0)
     {
       perror("msgrcv");
