@@ -31,7 +31,7 @@ int main()
      */
     key = 1234;
 
-    if ((msqid = msgget(key, 0666)) < 0) {
+    if ((msqid = msgget(key, 0666 | IPC_CREAT)) < 0) {
         perror("msgget");
         exit(1);
     }
@@ -41,7 +41,7 @@ int main()
 			/*
 			 * Receive an answer of message type 1.
 			 */
-			if (msgrcv(msqid, &rbuf, sizeof(rbuf), 1, 0) < 0) {
+			if (msgrcv(msqid, &rbuf, sizeof(rbuf) - sizeof(long), 1, 0) < 0) {
 					perror("msgrcv");
 					exit(1);
 			}
@@ -50,6 +50,14 @@ int main()
 			 * Print the answer.
 			 */
 			printf("%s %d\n", rbuf.mtext, rbuf.number);
+
+       struct msqid_ds buffer_status;
+
+      if (msgctl(msqid, IPC_STAT, &buffer_status)) {
+          perror("msgctl");
+          exit(1);
+      }
+      printf("Messages on queue: %d\n", buffer_status.msg_qnum); 
 		}
     exit(0);
 }

@@ -6,21 +6,23 @@
 #include <stdbool.h>
 
 #define MAX_BUFFER_SIZE 1024
-#define MSQID 444
+#define MSQID 1444
 
 typedef struct msgbuf {
     long    mtype;
-    int     buffer[MAX_BUFFER_SIZE];
-    int     consume_count;
-    int     produce_count;
     int     remaining;
-    int     buffer_size;
+    int     item;
 } message_buf;
 
 int main(int argc, char** argv) {
   int msqid, msqid_consumer;
   key_t producer_key;
   message_buf  rbuf;
+
+  message_buf sbuf = {
+    .mtype = 1,
+    .remaining = 0,
+  };
 
   producer_key = MSQID;
   if ((msqid = msgget(producer_key, 0660 | IPC_CREAT)) < 0) {
@@ -34,30 +36,22 @@ int main(int argc, char** argv) {
     exit(1);
   }
 
-  do
-  {
+  do {
     // get message from producer
     // this is blocking
-    if (msgrcv(msqid, &rbuf, sizeof(rbuf) - sizeof(long), 1, 0) < 0)
-    {
+    if (msgrcv(msqid, &rbuf, sizeof(rbuf) - sizeof(long), 1, 0) < 0) {
       perror("msgrcv");
       exit(1);
-    }
-    else
-    {
+    } else {
       printf("...[%d] consumer received %d\n", rbuf.remaining, \
-					rbuf.buffer[rbuf.produce_count-1 % rbuf.buffer_size]);
+          rbuf.item);
     }
-		--rbuf.produce_count;
     int length = sizeof(rbuf) - sizeof(long);
 
-    if (msgsnd(msqid_consumer, &rbuf, length, IPC_NOWAIT) < 0)
-    {
-      perror("msgsnd");
+    // notify producer that item was consumed
+    if (msgsnd(msqid_consumer, &sbuf, sizeof(sbuf) - sizeof(long), IPC_NOWAIT) < 0) {
+      perror("msgsnd (consumer)");
       exit(1);
-    }
-    else
-    {
     }
   }
   while (rbuf.remaining > 0);

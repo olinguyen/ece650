@@ -11,9 +11,8 @@
 #include <sys/wait.h>
 
 #define MAX_BUFFER_SIZE 1024
-#define MSQID 444
+#define MSQID 1444
 int buffer[MAX_BUFFER_SIZE];
-
 
 void producer_consumer_thread(int n, int b);
 void* ConsumerThread(void *a);
@@ -23,11 +22,8 @@ void producer_consumer_process(int n, int b);
 
 typedef struct msgbuf {
     long    mtype;
-    int     buffer[MAX_BUFFER_SIZE];
-    int     consume_count;
-    int     produce_count;
     int     remaining;
-    int     buffer_size;
+    int     item;
 } message_buf;
 
 typedef struct {
@@ -140,9 +136,6 @@ void producer_consumer_process(int n, int b)
     execvp("./consumer", argv);
   } else {
     printf("Producer process started!\n");
-    // TODO: Find better way to wait for child process to start
-    // otherwise message is not received by child
-    sleep(1);
     int status;
 
     int msqid, msqid_consumer;
@@ -150,11 +143,10 @@ void producer_consumer_process(int n, int b)
     key_t producer_key;
     message_buf sbuf = {
       .mtype = 1,
-      .produce_count = 0,
-      .consume_count = 0,
       .remaining = n,
-      .buffer_size = b
     };
+
+    message_buf rbuf;
 
     size_t buf_length;
 
@@ -173,46 +165,38 @@ void producer_consumer_process(int n, int b)
 
     while (sbuf.remaining > 0) {
       // generate random numbers
-			sbuf.buffer[sbuf.produce_count % b] = rand() % 10;
-			++sbuf.produce_count;
+      sbuf.item = rand() % 10;
+
       --sbuf.remaining;
 
       buf_length = sizeof(sbuf) - sizeof(long);
 
-      if (msgsnd(msqid, &sbuf, buf_length, IPC_NOWAIT) < 0)
-      {
-        perror("msgsnd");
+      if (msgsnd(msqid, &sbuf, buf_length, IPC_NOWAIT) < 0) {
+        perror("msgsnd (producer)");
         exit(1);
-      }
-      else
-      {
-        printf("...[%d] producer sent %d\n", sbuf.remaining, sbuf.buffer[sbuf.produce_count-1 % b]);
+      } else {
+        printf("...[%d] producer sent %d\n", sbuf.remaining, sbuf.item);
       }
 
-			int current_items = sbuf.produce_count;
+      struct msqid_ds buffer_status;
 
-			/*
-      // wait for notification that things were consumed
-      if (msgrcv(msqid_consumer, &sbuf, sizeof(sbuf), 1, IPC_NOWAIT) < 0)
-      {
-				sbuf.produce_count = current_items;
-//        perror("msgrcv (producer)");
-//        exit(1);
+      if (msgctl(msqid, IPC_STAT, &buffer_status)) {
+          perror("msgctl");
+          exit(1);
       }
-			*/
 
-			//if (sbuf.produce_count == b)
-			//{
+      if (buffer_status.msg_qnum > b) {
+        printf("Messages on queue: %d\n", buffer_status.msg_qnum);
 				// wait for notification that things were consumed
 				// this is blocking
-				if (msgrcv(msqid_consumer, &sbuf, sizeof(sbuf) - sizeof(long), 1, 0) < 0)
-				{
+				if (msgrcv(msqid_consumer, &rbuf, sizeof(rbuf) - sizeof(long), 1, 0) < 0) {
 					perror("msgrcv (producer)");
 					exit(1);
 				}
-			//}
+      }
     }
 
+    // wait for child process to return
     wait(&status);
   }
 }
