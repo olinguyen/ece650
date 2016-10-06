@@ -12,7 +12,10 @@
 
 #define MAX_BUFFER_SIZE 1024
 #define MSQID 1444
+#define DEBUG 0
+
 int buffer[MAX_BUFFER_SIZE];
+struct timeval transmit_start, transmit_end;
 
 void producer_consumer_thread(int n, int b);
 void* ConsumerThread(void *a);
@@ -24,6 +27,7 @@ typedef struct msgbuf {
     long    mtype;
     int     remaining;
     int     item;
+    bool    is_buffer_full;
 } message_buf;
 
 typedef struct {
@@ -39,22 +43,41 @@ typedef struct {
 } SharedMemory;
 
 int main(int argc, char** argv) {
+  int N[6] = {20000, 40000, 80000, 160000, 320000, 640000};
+  int B[5] = {16, 32, 64, 128, 256};
+
+  printf("n,b,total_time,transmit_time,init_time\n");
   if (argc < 3) {
     printf("Invalid number of arguments.\n");
   } else {
     int n = strtol(argv[1], NULL, 10);
     int b = strtol(argv[2], NULL, 10);
 
-    struct timeval start, end;
-    gettimeofday(&start, NULL);
+    for(int i = 0; i < 5; ++i) {
+      b = B[i];
+      for (int j = 0; j < 6; ++j) {
+        n = N[j];
 
-    //producer_consumer_thread(n, b);
-    producer_consumer_process(n, b);
+        for (int k = 0; k < 100; ++k) {
+          struct timeval program_start, program_end;
+          gettimeofday(&program_start, NULL);
 
-    gettimeofday(&end, NULL);
-    printf("Time to execute: <%.4f>\n",
-          ((end.tv_sec + end.tv_usec / 1000000.0)
-        - (start.tv_sec + start.tv_usec / 1000000.0)));
+          //producer_consumer_thread(n, b);
+          producer_consumer_process(n, b);
+
+          gettimeofday(&program_end, NULL);
+
+          float total_time = ((program_end.tv_sec + program_end.tv_usec / 1000000.0) \
+              - (program_start.tv_sec + program_start.tv_usec / 1000000.0));
+          float transmit_time = ((transmit_end.tv_sec + transmit_end.tv_usec / 1000000.0) \
+              - (transmit_start.tv_sec + transmit_start.tv_usec / 1000000.0));
+          printf("%d,%d,%.6f,%.6f,%.6f\n", \
+            n, b, total_time, transmit_time, total_time - transmit_time);
+
+        }
+      }
+    }
+
   }
 
   return 0;
@@ -82,8 +105,11 @@ void producer_consumer_thread(int n, int b) {
 
 void* ProducerThread(void *a)
 {
+  gettimeofday(&transmit_start, NULL);
   SharedMemory* sharedmem = (SharedMemory*)a;
+#if DEBUG
   printf("Producer thread started!\n");
+#endif
 
   while (sharedmem->n > 0) {
     // Block if buffer is full
@@ -93,20 +119,25 @@ void* ProducerThread(void *a)
     }
 
     sharedmem->buffer[sharedmem->buffer_count % sharedmem->buffer_size] = rand() % 10;
+#if DEBUG
     printf("...%d Produced:%d\n", sharedmem->buffer_count, \
         sharedmem->buffer[sharedmem->buffer_count % sharedmem->buffer_size]);
+#endif
     ++sharedmem->buffer_count;
     --sharedmem->n;
 
     pthread_cond_signal(&sharedmem->consume_cond);
     pthread_mutex_unlock(&sharedmem->lock);
   }
+  gettimeofday(&transmit_end, NULL);
 }
 
 void* ConsumerThread(void *a)
 {
   SharedMemory* sharedmem = (SharedMemory*)a;
+#if DEBUG
   printf("Consumer thread started!\n");
+#endif
 
   while(sharedmem->n > 0) {
     // block if everything was consumed
@@ -116,7 +147,9 @@ void* ConsumerThread(void *a)
     }
 
     int consumed = sharedmem->buffer[sharedmem->buffer_count % sharedmem->buffer_size];
+#if DEBUG
     printf("...%d Consumed: %d\n", sharedmem->buffer_count, consumed);
+#endif
 
     --sharedmem->buffer_count;
 
@@ -132,38 +165,63 @@ void producer_consumer_process(int n, int b)
   if (pid == 0) {
     char *argv[3] = {"Command-line", ".", NULL};
 
+#if DEBUG
     printf("Consumer process started!\n");
+#endif
     execvp("./consumer", argv);
   } else {
+    gettimeofday(&transmit_start, NULL);
+#if DEBUG
     printf("Producer process started!\n");
+#endif
     int status;
 
     int msqid, msqid_consumer;
     int msgflg = IPC_CREAT | 0660;
-    key_t producer_key;
+    key_t producer_key = MSQID, consumer_key = MSQID + 1;
     message_buf sbuf = {
       .mtype = 1,
       .remaining = n,
+      .is_buffer_full = false
     };
 
     message_buf rbuf;
-
     size_t buf_length;
-
-    producer_key = MSQID;
 
     if ((msqid = msgget(producer_key, msgflg )) < 0) {
       perror("msgget");
       exit(1);
     }
 
-    key_t consumer_key = MSQID + 1;
     if ((msqid_consumer = msgget(consumer_key, msgflg)) < 0) {
       perror("msgget");
       exit(1);
     }
 
     while (sbuf.remaining > 0) {
+
+      // check if buffer is full
+      struct msqid_ds buffer_status;
+      if (msgctl(msqid, IPC_STAT, &buffer_status)) {
+          perror("msgctl");
+          exit(1);
+      }
+
+      if (buffer_status.msg_qnum >= b) {
+#if DEBUG
+        printf("Messages on queue: %d\n", buffer_status.msg_qnum);
+#endif
+        sbuf.is_buffer_full = true;
+        // wait for notification that an item was consumed
+        // this is blocking
+        if (msgrcv(msqid_consumer, &rbuf, sizeof(rbuf) - sizeof(long), 1, 0) < 0) {
+          perror("msgrcv (producer)");
+          exit(1);
+        }
+      } else {
+        sbuf.is_buffer_full = false;
+      }
+
       // generate random numbers
       sbuf.item = rand() % 10;
 
@@ -175,28 +233,15 @@ void producer_consumer_process(int n, int b)
         perror("msgsnd (producer)");
         exit(1);
       } else {
+#if DEBUG
         printf("...[%d] producer sent %d\n", sbuf.remaining, sbuf.item);
-      }
-
-      struct msqid_ds buffer_status;
-
-      if (msgctl(msqid, IPC_STAT, &buffer_status)) {
-          perror("msgctl");
-          exit(1);
-      }
-
-      if (buffer_status.msg_qnum > b) {
-        printf("Messages on queue: %d\n", buffer_status.msg_qnum);
-				// wait for notification that things were consumed
-				// this is blocking
-				if (msgrcv(msqid_consumer, &rbuf, sizeof(rbuf) - sizeof(long), 1, 0) < 0) {
-					perror("msgrcv (producer)");
-					exit(1);
-				}
+#endif
       }
     }
 
     // wait for child process to return
     wait(&status);
+
+    gettimeofday(&transmit_end, NULL);
   }
 }

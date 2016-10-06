@@ -29,7 +29,7 @@ int main()
      * "name" 1234, which was created by
      * the server.
      */
-    key = 1234;
+    key = 1222;
 
     if ((msqid = msgget(key, 0666 | IPC_CREAT)) < 0) {
         perror("msgget");
@@ -51,7 +51,7 @@ int main()
 			 */
 			printf("%s %d\n", rbuf.mtext, rbuf.number);
 
-       struct msqid_ds buffer_status;
+      struct msqid_ds buffer_status;
 
       if (msgctl(msqid, IPC_STAT, &buffer_status)) {
           perror("msgctl");

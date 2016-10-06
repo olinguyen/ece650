@@ -26,7 +26,7 @@ int main()
     message_buf sbuf;
     size_t buf_length;
 
-    key = 1234;
+    key = 1222;
 
     if ((msqid = msgget(key, msgflg )) < 0) {
         perror("msgget");
@@ -51,6 +51,14 @@ int main()
     }
    else
       printf("Message: \"%s\" Sent\n", sbuf.mtext);
+
+      struct msqid_ds buffer_status;
+
+      if (msgctl(msqid, IPC_STAT, &buffer_status)) {
+          perror("msgctl");
+          exit(1);
+      }
+      printf("Messages on queue: %d\n", buffer_status.msg_qnum); 
 
     exit(0);
 }
