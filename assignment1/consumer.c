@@ -16,35 +16,28 @@ typedef struct msgbuf {
     bool    consumed;
 } message_buf;
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
   int msqid;
   key_t producer_key;
   message_buf  rbuf;
 
   producer_key = 1338;
 
-  if ((msqid = msgget(producer_key, 0666)) < 0)
-  {
+  if ((msqid = msgget(producer_key, 0666)) < 0) {
     perror("msgget");
     exit(1);
   }
 
-  do
-  {
+  do {
     // get message from producer
     // this is blocking
-    if (msgrcv(msqid, &rbuf, sizeof(rbuf), 1, 0) < 0)
-    {
+    if (msgrcv(msqid, &rbuf, sizeof(rbuf), 1, 0) < 0) {
       perror("msgrcv");
       exit(1);
-    }
-    else
-    {
+    } else {
       rbuf.consume_count += rbuf.produce_count;
       printf("...consumer received %d: ", rbuf.produce_count);
-      for (int i = 0; i < rbuf.produce_count; ++i)
-      {
+      for (int i = 0; i < rbuf.produce_count; ++i) {
         printf("%d ", rbuf.buffer[i]);
       }
       printf("\n");
@@ -53,14 +46,10 @@ int main(int argc, char** argv)
     rbuf.consumed = 1;
     int length = sizeof(rbuf) - sizeof(long);
 
-    if (msgsnd(msqid, &rbuf, length, IPC_NOWAIT) < 0)
-    {
+    if (msgsnd(msqid, &rbuf, length, IPC_NOWAIT) < 0) {
       perror("msgsnd");
       exit(1);
-    }
-    else
-    {
-    }
+    } else {}
   }
   while (rbuf.remaining > 0);
 
