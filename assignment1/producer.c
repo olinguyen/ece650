@@ -11,7 +11,9 @@
 #include <sys/wait.h>
 
 #define MAX_BUFFER_SIZE 1024
+#define MSQID 444
 int buffer[MAX_BUFFER_SIZE];
+
 
 void producer_consumer_thread(int n, int b);
 void* ConsumerThread(void *a);
@@ -25,17 +27,18 @@ typedef struct msgbuf {
     int     consume_count;
     int     produce_count;
     int     remaining;
-    bool    consumed;
+    int     buffer_size;
 } message_buf;
 
 typedef struct {
-  int* buffer;
-  int buffer_size;
-  int produce_count;
-  int consume_count;
-  int n;
+  int* buffer; // the buffer itself
+  int buffer_size; // max buffer size
+  int buffer_count; // number of elements currently in the buffer
+  int n; // total elements to be produced
 
-  long mtype;
+  pthread_mutex_t lock;
+  pthread_cond_t produce_cond;
+  pthread_cond_t consume_cond;
 
 } SharedMemory;
 
@@ -49,7 +52,7 @@ int main(int argc, char** argv) {
     struct timeval start, end;
     gettimeofday(&start, NULL);
 
-//    producer_consumer_thread(n, b);
+    //producer_consumer_thread(n, b);
     producer_consumer_process(n, b);
 
     gettimeofday(&end, NULL);
@@ -63,12 +66,15 @@ int main(int argc, char** argv) {
 
 void producer_consumer_thread(int n, int b) {
 
-  SharedMemory sharedmem;
-  sharedmem.consume_count = 0;
-  sharedmem.produce_count = 0;
-  sharedmem.buffer_size = b;
-  sharedmem.buffer = buffer;
-  sharedmem.n = n;
+  SharedMemory sharedmem = {
+    .buffer_count = 0,
+    .buffer_size = b,
+    .buffer = buffer,
+    .n = n,
+    .lock = PTHREAD_MUTEX_INITIALIZER,
+    .produce_cond = PTHREAD_COND_INITIALIZER,
+    .consume_cond = PTHREAD_COND_INITIALIZER
+  };
 
   pthread_t consumer_id, producer_id;
   pthread_create(&producer_id, NULL, ProducerThread, (void*)&sharedmem);
@@ -85,13 +91,19 @@ void* ProducerThread(void *a)
 
   while (sharedmem->n > 0) {
     // Block if buffer is full
-    while(sharedmem->produce_count - sharedmem->consume_count == sharedmem->buffer_size);
-    sharedmem->buffer[sharedmem->produce_count % sharedmem->buffer_size] = rand() % 10;
+    pthread_mutex_lock(&sharedmem->lock);
+    while(sharedmem->buffer_count == sharedmem->buffer_size) {
+      pthread_cond_wait(&sharedmem->produce_cond, &sharedmem->lock);
+    }
 
-    printf("...%d Produced:%d\n", sharedmem->produce_count, sharedmem->buffer[sharedmem->produce_count % sharedmem->buffer_size]);
-
-    ++sharedmem->produce_count;
+    sharedmem->buffer[sharedmem->buffer_count % sharedmem->buffer_size] = rand() % 10;
+    printf("...%d Produced:%d\n", sharedmem->buffer_count, \
+        sharedmem->buffer[sharedmem->buffer_count % sharedmem->buffer_size]);
+    ++sharedmem->buffer_count;
     --sharedmem->n;
+
+    pthread_cond_signal(&sharedmem->consume_cond);
+    pthread_mutex_unlock(&sharedmem->lock);
   }
 }
 
@@ -102,12 +114,18 @@ void* ConsumerThread(void *a)
 
   while(sharedmem->n > 0) {
     // block if everything was consumed
-    while(sharedmem->produce_count - sharedmem->consume_count == 0);
+    pthread_mutex_lock(&sharedmem->lock);
+    while(sharedmem->buffer_count == 0) {
+      pthread_cond_wait(&sharedmem->consume_cond, &sharedmem->lock);
+    }
 
-    int consumed = sharedmem->buffer[sharedmem->consume_count % sharedmem->buffer_size];
-    printf("...%d Consumed: %d\n", sharedmem->consume_count, consumed);
+    int consumed = sharedmem->buffer[sharedmem->buffer_count % sharedmem->buffer_size];
+    printf("...%d Consumed: %d\n", sharedmem->buffer_count, consumed);
 
-    ++sharedmem->consume_count;
+    --sharedmem->buffer_count;
+
+    pthread_cond_signal(&sharedmem->produce_cond);
+    pthread_mutex_unlock(&sharedmem->lock);
   }
 }
 
@@ -127,56 +145,72 @@ void producer_consumer_process(int n, int b)
     sleep(1);
     int status;
 
-    int msqid;
-    int msgflg = IPC_CREAT | 0666;
+    int msqid, msqid_consumer;
+    int msgflg = IPC_CREAT | 0660;
     key_t producer_key;
-    message_buf sbuf;
+    message_buf sbuf = {
+      .mtype = 1,
+      .produce_count = 0,
+      .consume_count = 0,
+      .remaining = n,
+      .buffer_size = b
+    };
+
     size_t buf_length;
 
-    producer_key = 1338;
+    producer_key = MSQID;
 
     if ((msqid = msgget(producer_key, msgflg )) < 0) {
       perror("msgget");
       exit(1);
     }
 
-    sbuf.mtype = 1;
-    sbuf.produce_count = 0;
-    sbuf.consume_count = 0;
-    sbuf.consumed = 0;
-    sbuf.remaining = n;
+    key_t consumer_key = MSQID + 1;
+    if ((msqid_consumer = msgget(consumer_key, msgflg)) < 0) {
+      perror("msgget");
+      exit(1);
+    }
 
     while (sbuf.remaining > 0) {
-      // send no more than buffer size
-      sbuf.produce_count = sbuf.remaining > b ? b : sbuf.remaining;
-
-      // generate n random numbers
-      for (int i = 0; i < sbuf.produce_count; ++i) {
-        sbuf.buffer[i] = rand() % 10;
-      }
-
-      sbuf.remaining -= sbuf.produce_count;
-      sbuf.consumed = 0;
+      // generate random numbers
+			sbuf.buffer[sbuf.produce_count % b] = rand() % 10;
+			++sbuf.produce_count;
+      --sbuf.remaining;
 
       buf_length = sizeof(sbuf) - sizeof(long);
 
-      if (msgsnd(msqid, &sbuf, buf_length, IPC_NOWAIT) < 0) {
+      if (msgsnd(msqid, &sbuf, buf_length, IPC_NOWAIT) < 0)
+      {
         perror("msgsnd");
         exit(1);
-      } else {
-        printf("...producer sent %d: ", sbuf.produce_count);
-        for (int i = 0; i < sbuf.produce_count; ++i) {
-          printf("%d ", sbuf.buffer[i]);
-        }
-        printf("\n");
+      }
+      else
+      {
+        printf("...[%d] producer sent %d\n", sbuf.remaining, sbuf.buffer[sbuf.produce_count-1 % b]);
       }
 
+			int current_items = sbuf.produce_count;
+
+			/*
       // wait for notification that things were consumed
-      // this is blocking
-      if (msgrcv(msqid, &sbuf, sizeof(sbuf), 1, 0) < 0) {
-        perror("msgrcv");
-        exit(1);
+      if (msgrcv(msqid_consumer, &sbuf, sizeof(sbuf), 1, IPC_NOWAIT) < 0)
+      {
+				sbuf.produce_count = current_items;
+//        perror("msgrcv (producer)");
+//        exit(1);
       }
+			*/
+
+			//if (sbuf.produce_count == b)
+			//{
+				// wait for notification that things were consumed
+				// this is blocking
+				if (msgrcv(msqid_consumer, &sbuf, sizeof(sbuf) - sizeof(long), 1, 0) < 0)
+				{
+					perror("msgrcv (producer)");
+					exit(1);
+				}
+			//}
     }
 
     wait(&status);
