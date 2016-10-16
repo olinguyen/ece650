@@ -10,34 +10,43 @@
 #include <sys/msg.h>
 #include <sys/wait.h>
 
+#include "random_distribution.h"
+
 #define MAX_BUFFER_SIZE 256
 #define MAX_CONSUMERS 256
 #define MAX_PRODUCERS 256
 #define MSQID 1337
-#define DEBUG 1
+#define DEBUG 0
+
+#define STDEV 1.0
 
 /*
 TODO:
-- measure block time
-- count number of times it blocks
 - message passing
-- random distributions
+- random distributions (use poisson, or get normal distribution values > 0)
 */
 
-struct timeval transmit_start, transmit_end;
-int t = 10; // total time of execution
-int b = 256; // buffer size
-int p = 1; // number of producers
+struct timeval transmit_start, transmit_end, \
+							 producer_block_start, producer_block_end, \
+							 consumer_block_start, consumer_block_end;
+
+
+double producer_block_time = 0.0, consumer_block_time = 0.0;
+
+int t = 5; // total time of execution
+int b = 32; // buffer size
+int p = 100; // number of producers
 int c = 1; // number of consumers
 
-float pt = 0.001; // prob. dist. for the random time Pt that the producers must wait between request productions
-float rs = 0.1; // prob. dist. of the request size
-float ct1 = 0.01; // prob. dist. for the random time Ct1 that the consumers take with probability pi
-float ct2 = 0.0001; // prob. dist. for the random time Ct2 that the consumers take with probability 1-pi
-float pi = 0.5; // probability pi
+float pt = 0.00001; // prob. dist. for the random time Pt that the producers must wait between request productions
+float rs = 50.0; // prob. dist. of the request size
+float ct1 = 0.5; // prob. dist. for the random time Ct1 that the consumers take with probability pi
+float ct2 = 0.05; // prob. dist. for the random time Ct2 that the consumers take with probability 1-pi
+float pi = 0.0; // probability pi
 
 int requests_completed = 0;
-int blocked = 0;
+int producer_blocked = 0;
+int consumer_blocked = 0;
 int count = 0;
 
 void producer_consumer_thread(int num_producers, int num_consumers, int b);
@@ -50,7 +59,7 @@ void produce(float ps, float rs);
 void consume(float ct1, float ct2, float pi);
 
 typedef struct {
-  int request_size;  
+  int request_size;
   int value;
   bool processed;
 } request_t;
@@ -76,7 +85,7 @@ typedef struct {
 
 } SharedMemory;
 
- 
+
 int main(int argc, char** argv) {
   srandom(time(NULL));
   if (argc < 3) {
@@ -127,26 +136,33 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
     buffer[i].processed = true;
   }
 
-  pthread_t consumer_id, producer_id;
+	double iteration_period = 1.0;
 
-  pthread_create(&producer_id, NULL, ProducerThread, (void*)&sharedmem);
-  pthread_create(&consumer_id, NULL, ConsumerThread, (void*)&sharedmem);
-
-  sleep(5);
-  //pthread_join(producer_id, NULL);
-  //pthread_join(consumer_id, NULL);
-
-  printf("Total requests completed %d\n", requests_completed);
-  printf("Times blocked %d/%d\n", blocked, count);
-
-  /*
   pthread_t producers_id[MAX_CONSUMERS], consumers_id[MAX_PRODUCERS];
-  for(int i = 0; i <= num_producers; ++i) {
+  for(int i = 0; i < num_producers; ++i) {
     pthread_create(&producers_id[i], NULL, ProducerThread, (void*)&sharedmem);
   }
-  for(int i = 0; i <= num_consumers; ++i) {
+  for(int i = 0; i < num_consumers; ++i) {
     pthread_create(&consumers_id[i], NULL, ConsumerThread, (void*)&sharedmem);
   }
+
+	// periodically print info
+	for (int i = 0; i < 10; ++i) {
+		sleep(10.0);
+		printf("%d, P=%d, C=%d\n", i, num_producers, num_consumers);
+		printf("Total requests completed %d\n", requests_completed);
+		printf("%d times producer_blocked %.2f%%\n", producer_blocked, (double)producer_blocked / count * 100.0);
+		printf("%d times consumer_blocked %.2f%%\n", consumer_blocked, (double)consumer_blocked / count * 100.0);
+		printf("Producers block time %.8f\n", producer_block_time);
+		printf("Consumers block time %.8f\n", consumer_block_time);
+		requests_completed = 0;
+		/*
+		printf("Times producer_blocked %d/%d\n", producer_blocked, count);
+		printf("Times consumer_blocked %d/%d\n", consumer_blocked, count);
+		*/
+	}
+
+  /*
   */
 }
 
@@ -157,48 +173,54 @@ void* ProducerThread(void *a)
 #if DEBUG
   printf("Producer thread started!\n");
 #endif
-  int low = 10, high = 100;
 
   while (1) {
     count++;
-    float request_wait_time = rand() % 100 * pt;
+    double request_wait_time = normal_distribution(pt * 100000, STDEV) / 100000.0;
 #if DEBUG
     //printf("[producer]...waiting %.4f before next request\n", request_wait_time);
 #endif
-    //sleep(request_wait_time);
+    sleep(request_wait_time);
 
     bool is_blocked = false;
+    gettimeofday(&producer_block_start, NULL);
     // Block if buffer is full
     pthread_mutex_lock(&sharedmem->lock);
     while(sharedmem->current_size == sharedmem->buffer_size) {
       if (!is_blocked) {
-        ++blocked;
+        ++producer_blocked;
       }
       is_blocked = true;
       pthread_cond_wait(&sharedmem->produce_cond, &sharedmem->lock);
     }
+    gettimeofday(&producer_block_end, NULL);
+		if (is_blocked) {
+			producer_block_time += ((producer_block_end.tv_sec + producer_block_end.tv_usec / 1000000.0) \
+					- (producer_block_start.tv_sec + producer_block_start.tv_usec / 1000000.0));
+		}
 
     int buffer_idx = sharedmem->buffer_count % sharedmem->buffer_size;
     // place requests in available spot only
-    bool is_processed = sharedmem->buffer[sharedmem->buffer_count % sharedmem->buffer_size].processed;
+    bool is_processed = sharedmem->buffer[buffer_idx].processed;
     while (!is_processed) {
       buffer_idx = (buffer_idx + 1) % sharedmem->buffer_size;
       is_processed = sharedmem->buffer[buffer_idx].processed;
     }
-    sharedmem->buffer[sharedmem->buffer_count % sharedmem->buffer_size].value = rand();
-    sharedmem->buffer[sharedmem->buffer_count % sharedmem->buffer_size].processed = false;
+    sharedmem->buffer[buffer_idx].value = rand();
+    sharedmem->buffer[buffer_idx].processed = false;
 #if DEBUG
     //printf("...%d Produced:%d\n", sharedmem->buffer_count, \
         sharedmem->buffer[sharedmem->buffer_count % sharedmem->buffer_size]);
 #endif
 
     // size of request to be transmitted (cannot exceed buffer size)
-    int request_size = low + rand() % (high - low);
+    int request_size = (int) normal_distribution(rs, STDEV * 5);
+		request_size = 1;
     if ((sharedmem->current_size + request_size) > sharedmem->buffer_size) {
       request_size = sharedmem->buffer_size - sharedmem->current_size;
     }
     //request_size = 1;
-    sharedmem->buffer[sharedmem->buffer_count % sharedmem->buffer_size].request_size = request_size;
+    sharedmem->buffer[buffer_idx].request_size = request_size;
     sharedmem->current_size += request_size;
 #if DEBUG
     printf("[producer]...generating request size %d\n", request_size);
@@ -220,20 +242,34 @@ void* ConsumerThread(void *a)
   printf("Consumer thread started!\n");
 #endif
   while(1) {
+    bool is_blocked = false;
+    gettimeofday(&consumer_block_start, NULL);
     // block if everything was consumed
     pthread_mutex_lock(&sharedmem->lock);
     while(sharedmem->current_size == 0) {
+      if (!is_blocked) {
+        ++consumer_blocked;
+      }
+      is_blocked = true;
       pthread_cond_wait(&sharedmem->consume_cond, &sharedmem->lock);
     }
+    gettimeofday(&consumer_block_end, NULL);
+
+		if (is_blocked) {
+			consumer_block_time += ((consumer_block_end.tv_sec + consumer_block_end.tv_usec / 1000000.0) \
+					- (consumer_block_start.tv_sec + consumer_block_start.tv_usec / 1000000.0));
+		}
 
     int buffer_idx = sharedmem->buffer_count % sharedmem->buffer_size;
     // get a request that was not processed yet
     bool is_processed = sharedmem->buffer[buffer_idx].processed;
     while (is_processed) {
+			//printf("%d looking for unprocessed request\n", buffer_idx);
       buffer_idx = (buffer_idx + 1) % sharedmem->buffer_size;
       is_processed = sharedmem->buffer[buffer_idx].processed;
     }
 
+		consume(ct1, ct2, pi);
     int consumed = sharedmem->buffer[buffer_idx].value;
     sharedmem->buffer[buffer_idx].processed = true;
     sharedmem->current_size -= sharedmem->buffer[buffer_idx].request_size;
@@ -362,11 +398,15 @@ void produce(float pt, float rs) {
 }
 
 void consume(float ct1, float ct2, float pi) {
+	double delay;
   if (pi <= (double)rand() / RAND_MAX) {
-    printf("...waiting ct1 = %.4f before next request\n", ct1);
-    sleep(ct1);
+		// simulates I/O delay (longer)
+    delay = normal_distribution(ct1 * 10, STDEV) / 10.0;
   } else {
-    printf("...waiting ct2 = %.4f before next request\n", ct1);
-    sleep(ct1);
+    delay = normal_distribution(ct2 * 100, STDEV) / 100.0;
   }
+	sleep(delay);
+#if DEBUG
+    printf("[consumer]...waiting %.4f before next request\n", delay);
+#endif
 }

@@ -1,7 +1,7 @@
 CC = gcc
 LIBS = -lm -lpthread
 INCPATH = ./include
-CFLAGs = -g -Wall -I$(INCPATH)
+CFLAGS = -g -Wall -I$(INCPATH)
 
 OBJ = consumer.o producer.o test.o
 
@@ -13,10 +13,10 @@ all: consumer producer
 consumer: consumer.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
-producer: producer.o
+producer: producer.o random_distribution.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
-test: test.o
+test: test.o random_distribution.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
 .PHONY: clean
