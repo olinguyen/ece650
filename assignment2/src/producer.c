@@ -17,6 +17,7 @@
 #define MAX_PRODUCERS 256
 #define MSQID 1337
 #define DEBUG 0
+#define VERBOSE 0
 
 #define STDEV 1.0
 
@@ -34,15 +35,15 @@ struct timeval transmit_start, transmit_end, \
 double producer_block_time = 0.0, consumer_block_time = 0.0;
 
 int t = 5; // total time of execution
-int b = 32; // buffer size
-int p = 100; // number of producers
+int b = 128; // buffer size
+int p = 1; // number of producers
 int c = 1; // number of consumers
 
-float pt = 0.00001; // prob. dist. for the random time Pt that the producers must wait between request productions
+float pt = 0.0005; // prob. dist. for the random time Pt that the producers must wait between request productions
 float rs = 50.0; // prob. dist. of the request size
-float ct1 = 0.5; // prob. dist. for the random time Ct1 that the consumers take with probability pi
-float ct2 = 0.05; // prob. dist. for the random time Ct2 that the consumers take with probability 1-pi
-float pi = 0.0; // probability pi
+float ct1 = 0.05; // prob. dist. for the random time Ct1 that the consumers take with probability pi
+float ct2 = 0.005; // prob. dist. for the random time Ct2 that the consumers take with probability 1-pi
+float pi = 0.5; // probability pi
 
 int requests_completed = 0;
 int producer_blocked = 0;
@@ -146,24 +147,32 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
     pthread_create(&consumers_id[i], NULL, ConsumerThread, (void*)&sharedmem);
   }
 
+  printf("b, p, c, pt, rs, ct1, ct2, pi, requests_completed, "
+         "producer_blocked, consumer_blocked, producer_block_time, "
+         "consumer_block_time\n");
+
 	// periodically print info
 	for (int i = 0; i < 10; ++i) {
 		sleep(10.0);
-		printf("%d, P=%d, C=%d\n", i, num_producers, num_consumers);
-		printf("Total requests completed %d\n", requests_completed);
-		printf("%d times producer_blocked %.2f%%\n", producer_blocked, (double)producer_blocked / count * 100.0);
-		printf("%d times consumer_blocked %.2f%%\n", consumer_blocked, (double)consumer_blocked / count * 100.0);
-		printf("Producers block time %.8f\n", producer_block_time);
-		printf("Consumers block time %.8f\n", consumer_block_time);
-		requests_completed = 0;
-		/*
-		printf("Times producer_blocked %d/%d\n", producer_blocked, count);
-		printf("Times consumer_blocked %d/%d\n", consumer_blocked, count);
-		*/
-	}
 
-  /*
-  */
+    if (VERBOSE) {
+      printf("%d, P=%d, C=%d\n", i, num_producers, num_consumers);
+      printf("Total requests completed %d\n", requests_completed);
+      printf("%d times producer_blocked %.2f%%\n", producer_blocked, (double)producer_blocked / count * 100.0);
+      printf("%d times consumer_blocked %.2f%%\n", consumer_blocked, (double)consumer_blocked / count * 100.0);
+      printf("Producers block time %.8f\n", producer_block_time);
+      printf("Consumers block time %.8f\n", consumer_block_time);
+    } else {
+      printf("%d,%d,%d,%d,%d,%d,%.8f,%.8f\n", b, p, c, \
+              requests_completed, producer_blocked, consumer_blocked, \
+              producer_block_time, consumer_block_time);
+    }
+
+		requests_completed = 0;
+    producer_block_time = 0.0;
+    consumer_block_time = 0.0;
+    count = producer_blocked = consumer_blocked = 0;
+	}
 }
 
 void* ProducerThread(void *a)
@@ -176,7 +185,7 @@ void* ProducerThread(void *a)
 
   while (1) {
     count++;
-    double request_wait_time = normal_distribution(pt * 100000, STDEV) / 100000.0;
+    double request_wait_time = normal_distribution(pt * 10000, STDEV) / 10000.0;
 #if DEBUG
     //printf("[producer]...waiting %.4f before next request\n", request_wait_time);
 #endif
@@ -184,9 +193,13 @@ void* ProducerThread(void *a)
 
     bool is_blocked = false;
     gettimeofday(&producer_block_start, NULL);
+
+    // size of request to be transmitted (cannot exceed buffer size)
+    int request_size = (int) normal_distribution(rs, STDEV * 5);
+
     // Block if buffer is full
     pthread_mutex_lock(&sharedmem->lock);
-    while(sharedmem->current_size == sharedmem->buffer_size) {
+    while(sharedmem->current_size + request_size >= sharedmem->buffer_size) {
       if (!is_blocked) {
         ++producer_blocked;
       }
@@ -213,13 +226,7 @@ void* ProducerThread(void *a)
         sharedmem->buffer[sharedmem->buffer_count % sharedmem->buffer_size]);
 #endif
 
-    // size of request to be transmitted (cannot exceed buffer size)
-    int request_size = (int) normal_distribution(rs, STDEV * 5);
-		request_size = 1;
-    if ((sharedmem->current_size + request_size) > sharedmem->buffer_size) {
-      request_size = sharedmem->buffer_size - sharedmem->current_size;
-    }
-    //request_size = 1;
+
     sharedmem->buffer[buffer_idx].request_size = request_size;
     sharedmem->current_size += request_size;
 #if DEBUG
@@ -401,9 +408,9 @@ void consume(float ct1, float ct2, float pi) {
 	double delay;
   if (pi <= (double)rand() / RAND_MAX) {
 		// simulates I/O delay (longer)
-    delay = normal_distribution(ct1 * 10, STDEV) / 10.0;
+    delay = normal_distribution(ct1 * 100, STDEV) / 100.0;
   } else {
-    delay = normal_distribution(ct2 * 100, STDEV) / 100.0;
+    delay = normal_distribution(ct2 * 1000, STDEV) / 1000.0;
   }
 	sleep(delay);
 #if DEBUG

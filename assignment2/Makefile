@@ -1,7 +1,7 @@
 CC = gcc
 LIBS = -lm -lpthread
 INCPATH = ./include
-CFLAGS = -g -Wall -I$(INCPATH)
+CFLAGS = -g -Wall -I$(INCPATH) -std=c99
 
 OBJ = consumer.o producer.o test.o
 
