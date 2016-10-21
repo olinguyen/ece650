@@ -34,7 +34,7 @@ struct timeval transmit_start, transmit_end, \
 
 double producer_block_time = 0.0, consumer_block_time = 0.0;
 
-int t = 5; // total time of execution
+int t = 100; // total time of execution
 int b = 128; // buffer size
 int p = 1; // number of producers
 int c = 1; // number of consumers
@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
   if (argc < 3) {
     printf("Invalid number of arguments.\n");
   } else {
-    /*
+    
     t = strtol(argv[1], NULL, 10); // total time of execution
     b = strtol(argv[2], NULL, 10); // buffer size
     p = strtol(argv[3], NULL, 10); // number of producers
@@ -102,7 +102,6 @@ int main(int argc, char** argv) {
     ct1 = atof(argv[7]); // prob. dist. for the random time Ct1 that the consumers take with probability pi
     ct2 = atof(argv[8]); // prob. dist. for the random time Ct2 that the consumers take with probability 1-pi
     pi = atof(argv[9]); // probability pi
-    */
 
     struct timeval program_start, program_end;
     gettimeofday(&program_start, NULL);
@@ -137,8 +136,6 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
     buffer[i].processed = true;
   }
 
-	double iteration_period = 1.0;
-
   pthread_t producers_id[MAX_CONSUMERS], consumers_id[MAX_PRODUCERS];
   for(int i = 0; i < num_producers; ++i) {
     pthread_create(&producers_id[i], NULL, ProducerThread, (void*)&sharedmem);
@@ -147,12 +144,13 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
     pthread_create(&consumers_id[i], NULL, ConsumerThread, (void*)&sharedmem);
   }
 
-  printf("b, p, c, pt, rs, ct1, ct2, pi, requests_completed, "
-         "producer_blocked, consumer_blocked, producer_block_time, "
+  printf("b,p,c,pt,rs,ct1,ct2,pi,requests_completed,"
+         "producer_blocked,consumer_blocked,producer_block_time,"
          "consumer_block_time\n");
+  int num_iterations = t / 10;
 
 	// periodically print info
-	for (int i = 0; i < 10; ++i) {
+	for (int i = 0; i < num_iterations; ++i) {
 		sleep(10.0);
 
     if (VERBOSE) {
@@ -163,7 +161,8 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
       printf("Producers block time %.8f\n", producer_block_time);
       printf("Consumers block time %.8f\n", consumer_block_time);
     } else {
-      printf("%d,%d,%d,%d,%d,%d,%.8f,%.8f\n", b, p, c, \
+      printf("%d,%d,%d,%.5f,%.2f,%.4f,%.4f,%.2f,%d,%d,%d,%.8f,%.8f\n", b, p, c, \
+              pt, rs, ct1, ct2, pi, \
               requests_completed, producer_blocked, consumer_blocked, \
               producer_block_time, consumer_block_time);
     }
@@ -225,7 +224,6 @@ void* ProducerThread(void *a)
     //printf("...%d Produced:%d\n", sharedmem->buffer_count, \
         sharedmem->buffer[sharedmem->buffer_count % sharedmem->buffer_size]);
 #endif
-
 
     sharedmem->buffer[buffer_idx].request_size = request_size;
     sharedmem->current_size += request_size;
