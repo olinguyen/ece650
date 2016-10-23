@@ -31,6 +31,8 @@ struct timeval transmit_start, transmit_end, \
 							 producer_block_start, producer_block_end, \
 							 consumer_block_start, consumer_block_end;
 
+struct timeval producer_blocks_start[MAX_PRODUCERS], producer_blocks_end[MAX_PRODUCERS], \
+							 consumer_blocks_start[MAX_CONSUMERS], consumer_blocks_end[MAX_CONSUMERS];
 
 double producer_block_time = 0.0, consumer_block_time = 0.0;
 
@@ -83,6 +85,8 @@ typedef struct {
   pthread_mutex_t lock;
   pthread_cond_t produce_cond;
   pthread_cond_t consume_cond;
+
+  int id;
 
 } SharedMemory;
 
@@ -138,15 +142,19 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
 
   pthread_t producers_id[MAX_CONSUMERS], consumers_id[MAX_PRODUCERS];
   for(int i = 0; i < num_producers; ++i) {
+    sharedmem.id = i;
     pthread_create(&producers_id[i], NULL, ProducerThread, (void*)&sharedmem);
   }
   for(int i = 0; i < num_consumers; ++i) {
+    sharedmem.id = i;
     pthread_create(&consumers_id[i], NULL, ConsumerThread, (void*)&sharedmem);
   }
 
+  /*
   printf("b,p,c,pt,rs,ct1,ct2,pi,requests_completed,"
          "producer_blocked,consumer_blocked,producer_block_time,"
          "consumer_block_time\n");
+  */
   int num_iterations = t / 10;
 
 	// periodically print info
@@ -166,7 +174,7 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
               requests_completed, producer_blocked, consumer_blocked, \
               producer_block_time, consumer_block_time);
     }
-
+    
 		requests_completed = 0;
     producer_block_time = 0.0;
     consumer_block_time = 0.0;
@@ -178,6 +186,7 @@ void* ProducerThread(void *a)
 {
   gettimeofday(&transmit_start, NULL);
   SharedMemory* sharedmem = (SharedMemory*)a;
+  int id = sharedmem->id;
 #if DEBUG
   printf("Producer thread started!\n");
 #endif
@@ -191,10 +200,10 @@ void* ProducerThread(void *a)
     sleep(request_wait_time);
 
     bool is_blocked = false;
-    gettimeofday(&producer_block_start, NULL);
+    gettimeofday(&producer_blocks_start[id], NULL);
 
     // size of request to be transmitted (cannot exceed buffer size)
-    int request_size = (int) normal_distribution(rs, STDEV * 5);
+    int request_size = (int) normal_distribution(rs, STDEV * 4);
 
     // Block if buffer is full
     pthread_mutex_lock(&sharedmem->lock);
@@ -205,10 +214,10 @@ void* ProducerThread(void *a)
       is_blocked = true;
       pthread_cond_wait(&sharedmem->produce_cond, &sharedmem->lock);
     }
-    gettimeofday(&producer_block_end, NULL);
+    gettimeofday(&producer_blocks_end[id], NULL);
 		if (is_blocked) {
-			producer_block_time += ((producer_block_end.tv_sec + producer_block_end.tv_usec / 1000000.0) \
-					- (producer_block_start.tv_sec + producer_block_start.tv_usec / 1000000.0));
+			producer_block_time += ((producer_blocks_end[id].tv_sec + producer_blocks_end[id].tv_usec / 1000000.0) \
+					- (producer_blocks_start[id].tv_sec + producer_blocks_start[id].tv_usec / 1000000.0));
 		}
 
     int buffer_idx = sharedmem->buffer_count % sharedmem->buffer_size;
@@ -243,12 +252,13 @@ void* ProducerThread(void *a)
 void* ConsumerThread(void *a)
 {
   SharedMemory* sharedmem = (SharedMemory*)a;
+  int id = sharedmem->id;
 #if DEBUG
   printf("Consumer thread started!\n");
 #endif
   while(1) {
     bool is_blocked = false;
-    gettimeofday(&consumer_block_start, NULL);
+    gettimeofday(&consumer_blocks_start[id], NULL);
     // block if everything was consumed
     pthread_mutex_lock(&sharedmem->lock);
     while(sharedmem->current_size == 0) {
@@ -258,11 +268,11 @@ void* ConsumerThread(void *a)
       is_blocked = true;
       pthread_cond_wait(&sharedmem->consume_cond, &sharedmem->lock);
     }
-    gettimeofday(&consumer_block_end, NULL);
+    gettimeofday(&consumer_blocks_end[id], NULL);
 
 		if (is_blocked) {
-			consumer_block_time += ((consumer_block_end.tv_sec + consumer_block_end.tv_usec / 1000000.0) \
-					- (consumer_block_start.tv_sec + consumer_block_start.tv_usec / 1000000.0));
+			consumer_block_time += ((consumer_blocks_end[id].tv_sec + consumer_blocks_end[id].tv_usec / 1000000.0) \
+					- (consumer_blocks_start[id].tv_sec + consumer_blocks_start[id].tv_usec / 1000000.0));
 		}
 
     int buffer_idx = sharedmem->buffer_count % sharedmem->buffer_size;
