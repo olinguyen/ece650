@@ -11,21 +11,17 @@
 #include <sys/wait.h>
 
 #include "random_distribution.h"
+#include "consume_produce.h"
+#include "types.h"
 
 #define MAX_BUFFER_SIZE 256
 #define MAX_CONSUMERS 256
 #define MAX_PRODUCERS 256
-#define MSQID 1337
-#define DEBUG 0
+#define MSQID 1201
+#define DEBUG 1
 #define VERBOSE 0
 
 #define STDEV 1.0
-
-/*
-TODO:
-- message passing
-- random distributions (use poisson, or get normal distribution values > 0)
-*/
 
 struct timeval transmit_start, transmit_end, \
 							 producer_block_start, producer_block_end, \
@@ -47,6 +43,7 @@ float ct1 = 0.05; // prob. dist. for the random time Ct1 that the consumers take
 float ct2 = 0.005; // prob. dist. for the random time Ct2 that the consumers take with probability 1-pi
 float pi = 0.5; // probability pi
 
+request_t buffer[MAX_BUFFER_SIZE];
 int requests_completed = 0;
 int producer_blocked = 0;
 int consumer_blocked = 0;
@@ -58,45 +55,14 @@ void* ProducerThread(void *a);
 
 void producer_consumer_process(int n, int b);
 
-void produce(float ps, float rs);
-void consume(float ct1, float ct2, float pi);
-
-typedef struct {
-  int request_size;
-  int value;
-  bool processed;
-} request_t;
-
-request_t buffer[MAX_BUFFER_SIZE];
-
-typedef struct msgbuf {
-    long    mtype;
-    int     remaining;
-    int     item;
-    bool    is_buffer_full;
-} message_buf;
-
-typedef struct {
-  request_t* buffer; // the buffer itself
-  int buffer_size; // max buffer size
-  int buffer_count; // number of elements currently in the buffer
-  int current_size; // number of bytes in the buffer
-
-  pthread_mutex_t lock;
-  pthread_cond_t produce_cond;
-  pthread_cond_t consume_cond;
-
-  int id;
-
-} SharedMemory;
-
 
 int main(int argc, char** argv) {
   srandom(time(NULL));
   if (argc < 3) {
     printf("Invalid number of arguments.\n");
   } else {
-    
+
+    /*
     t = strtol(argv[1], NULL, 10); // total time of execution
     b = strtol(argv[2], NULL, 10); // buffer size
     p = strtol(argv[3], NULL, 10); // number of producers
@@ -106,12 +72,15 @@ int main(int argc, char** argv) {
     ct1 = atof(argv[7]); // prob. dist. for the random time Ct1 that the consumers take with probability pi
     ct2 = atof(argv[8]); // prob. dist. for the random time Ct2 that the consumers take with probability 1-pi
     pi = atof(argv[9]); // probability pi
+    */
 
     struct timeval program_start, program_end;
     gettimeofday(&program_start, NULL);
 
-    producer_consumer_thread(p, c, b);
-    //producer_consumer_process(n, b);
+    //producer_consumer_thread(p, c, b);
+    int n = 32;
+    b = 8;
+    producer_consumer_process(n, b);
 
     gettimeofday(&program_end, NULL);
 
@@ -174,7 +143,7 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
               requests_completed, producer_blocked, consumer_blocked, \
               producer_block_time, consumer_block_time);
     }
-    
+
 		requests_completed = 0;
     producer_block_time = 0.0;
     consumer_block_time = 0.0;
@@ -284,7 +253,7 @@ void* ConsumerThread(void *a)
       is_processed = sharedmem->buffer[buffer_idx].processed;
     }
 
-		consume(ct1, ct2, pi);
+		consume(ct1, ct2, pi, STDEV);
     int consumed = sharedmem->buffer[buffer_idx].value;
     sharedmem->buffer[buffer_idx].processed = true;
     sharedmem->current_size -= sharedmem->buffer[buffer_idx].request_size;
@@ -328,6 +297,7 @@ void producer_consumer_process(int n, int b)
 #if DEBUG
     printf("Producer process started!\n");
 #endif
+    sleep(1.0);
     int status;
 
     int msqid, msqid_consumer;
@@ -400,28 +370,3 @@ void producer_consumer_process(int n, int b)
   }
 }
 
-void produce(float pt, float rs) {
-  int low = 10, high = 100;
-
-  float request_wait_time = rand() % 100 * pt;
-  printf("...waiting %.4f before next request\n", request_wait_time);
-  sleep(request_wait_time);
-
-  int request_size = low + rand() % (high - low);
-  printf("...generating request size %d\n", request_size);
-
-}
-
-void consume(float ct1, float ct2, float pi) {
-	double delay;
-  if (pi <= (double)rand() / RAND_MAX) {
-		// simulates I/O delay (longer)
-    delay = normal_distribution(ct1 * 100, STDEV) / 100.0;
-  } else {
-    delay = normal_distribution(ct2 * 1000, STDEV) / 1000.0;
-  }
-	sleep(delay);
-#if DEBUG
-    printf("[consumer]...waiting %.4f before next request\n", delay);
-#endif
-}

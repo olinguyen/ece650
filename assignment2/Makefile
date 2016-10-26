@@ -13,7 +13,7 @@ all: consumer producer
 consumer: consumer.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
-producer: producer.o random_distribution.o
+producer: producer.o random_distribution.o consume_produce.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
 test: test.o random_distribution.o

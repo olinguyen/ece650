@@ -6,8 +6,8 @@
 #include <stdbool.h>
 
 #define MAX_BUFFER_SIZE 1024
-#define MSQID 1337
-#define DEBUG 0
+#define MSQID 1201
+#define DEBUG 1
 
 typedef struct msgbuf {
     long    mtype;
