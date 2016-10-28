@@ -1,5 +1,6 @@
 #ifndef TYPES_H 
 #define TYPES_H
+#include <pthread.h>
 
 typedef struct {
   int request_size;
@@ -12,6 +13,7 @@ typedef struct msgbuf {
     int     remaining;
     int     item;
     bool    is_buffer_full;
+    char    buffer[1024];
 } message_buf;
 
 typedef struct {
