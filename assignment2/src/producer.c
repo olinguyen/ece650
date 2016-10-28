@@ -1,69 +1,101 @@
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdbool.h>
+
+#include <sys/time.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/types.h>
-#include <stdbool.h>
 
 #include "types.h"
 #include "consume_produce.h"
+#include "random_distribution.h"
 
 #define MSQID 1337
-#define DEBUG 1
-
-struct timeval producer_block_start, producer_block_end;
+#define DEBUG 0
+struct timeval transmit_start, transmit_end, \
+               producer_block_start, producer_block_end;
 double producer_block_time = 0.0;
 
 int main(int argc, char** argv) {
-  float pt = 0.0005;
-  int n = 32;
-  int b = 128;
-  int producer_blocked;
-  double rs = 50.0;
-  double std = 1.0;
-
 #if DEBUG
   printf("Producer process started!\n");
 #endif
+  int b = strtol(argv[1], NULL, 10); 
+  double pt = atof(argv[2]);
+  double rs = atof(argv[3]);
+
+  srandom(time(NULL));
+  int n = 1000;
+  int producer_blocked = 0;
+  double std = 1.0;
+
   int status;
   int id = 0;
 
-  int msqid, msqid_consumer;
+  int msqid, msqid_info;
   int msgflg = IPC_CREAT | 0660;
-  key_t producer_key = MSQID, consumer_key = MSQID + 1;
+  key_t main_key = MSQID, info_key = MSQID + 1;
   message_buf sbuf = {
     .mtype = 1,
     .remaining = n,
     .is_buffer_full = false
   };
 
+  message_buf infobuf = {
+    .mtype = 1,
+    .requests_completed = 0,
+    .consumer_blocked = 0,
+    .consumer_block_time = 0.0,
+    .is_buffer_full = false
+  };
+
   message_buf rbuf;
   size_t buf_length;
 
-  if ((msqid = msgget(producer_key, msgflg )) < 0) {
+  if ((msqid = msgget(main_key, msgflg )) < 0) {
     perror("msgget");
     exit(1);
   }
 
-  if ((msqid_consumer = msgget(consumer_key, msgflg)) < 0) {
+  if ((msqid_info = msgget(info_key, msgflg)) < 0) {
     perror("msgget");
     exit(1);
   }
 
-  while (sbuf.remaining > 0) {
+  time_t previous_time = 0;
+  gettimeofday(&transmit_start, NULL);
+  while (1) {
+    gettimeofday(&transmit_end, NULL);
+    time_t elapsed = transmit_end.tv_sec - transmit_start.tv_sec;
+    if (previous_time != elapsed && elapsed % 5 == 0) {
+      infobuf.producer_block_time = producer_block_time;
+      infobuf.producer_blocked = producer_blocked;
+      size_t buf_length = sizeof(infobuf) - sizeof(long);
+      if (msgsnd(msqid_info, &infobuf, buf_length, IPC_NOWAIT) < 0) {
+        perror("msgsnd (producer)");
+        exit(1);
+      } else {
+      }
+
+      previous_time = elapsed;
+#if DEBUG
+      printf("producer_blocked %d times\n", producer_blocked);
+      printf("Producers block time %.8f\n", producer_block_time);
+#endif
+      producer_block_time = 0.0;
+      producer_blocked = 0;
+    }
     double request_wait_time = normal_distribution(pt * 10000, std) / 10000.0;
 
-    printf("sleeping %.5f...\n", request_wait_time);
-    //sleep(request_wait_time);
-    sleep(0.01);
-    printf("gucci\n");
+    sleep(request_wait_time);
     // size of request to be transmitted (cannot exceed buffer size)
     int request_size = (int) normal_distribution(rs, std * 4);
     bool is_blocked = false;
     struct msqid_ds buffer_status;
 
     gettimeofday(&producer_block_start, NULL);
-    printf("checking buffer...\n");
     // block if buffer is full
     do {
       if (msgctl(msqid, IPC_STAT, &buffer_status)) {
@@ -86,7 +118,7 @@ int main(int argc, char** argv) {
     }
 
     // generate requests
-    --sbuf.remaining;
+    //--sbuf.remaining;
 
     //buf_length = sizeof(sbuf) - sizeof(long);
     buf_length = request_size;
@@ -96,7 +128,7 @@ int main(int argc, char** argv) {
       exit(1);
     } else {
 #if DEBUG
-      printf("...[%d] producer sent %d, %c\n", sbuf.remaining, sbuf.item, sbuf.buffer[0]);
+      printf("...[%d] producer sent %d, %c of size %d\n", sbuf.remaining, sbuf.item, sbuf.buffer[0], request_size);
 #endif
     }
   }

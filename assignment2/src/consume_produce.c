@@ -17,6 +17,7 @@ void produce(float pt, float rs) {
 }
 
 void consume(float ct1, float ct2, float pi, float std) {
+  srandom(time(NULL));
 	double delay;
   if (pi <= (double)rand() / RAND_MAX) {
 		// simulates I/O delay (longer)
