@@ -96,6 +96,7 @@ int main(int argc, char** argv) {
 }
 
 void producer_consumer_thread(int num_consumers, int num_producers, int b) {
+  int i;
 
   SharedMemory sharedmem = {
     .buffer_count = 0,
@@ -105,16 +106,16 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
     .produce_cond = PTHREAD_COND_INITIALIZER,
     .consume_cond = PTHREAD_COND_INITIALIZER
   };
-  for (int i = 0; i < MAX_BUFFER_SIZE; ++i) {
+  for (i = 0; i < MAX_BUFFER_SIZE; ++i) {
     buffer[i].processed = true;
   }
 
   pthread_t producers_id[MAX_CONSUMERS], consumers_id[MAX_PRODUCERS];
-  for(int i = 0; i < num_producers; ++i) {
+  for(i = 0; i < num_producers; ++i) {
     sharedmem.id = i;
     pthread_create(&producers_id[i], NULL, ProducerThread, (void*)&sharedmem);
   }
-  for(int i = 0; i < num_consumers; ++i) {
+  for(i = 0; i < num_consumers; ++i) {
     sharedmem.id = i;
     pthread_create(&consumers_id[i], NULL, ConsumerThread, (void*)&sharedmem);
   }
@@ -127,7 +128,7 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
   int num_iterations = t / 10;
 
 	// periodically print info
-	for (int i = 0; i < num_iterations; ++i) {
+	for (i = 0; i < num_iterations; ++i) {
 		sleep(10.0);
 
     if (VERBOSE) {
@@ -271,6 +272,7 @@ void* ConsumerThread(void *a)
 
 void producer_consumer_process(int n, int b)
 {
+  int i;
   int msqid_info;
   int msgflg = IPC_CREAT | 0660;
   key_t info_key = MSQID + 1;
@@ -294,7 +296,7 @@ void producer_consumer_process(int n, int b)
   snprintf(pis, 5, "%f", pi);
   snprintf(bs, 5, "%d", b);
 
-  for(int i = 0; i < c; ++i) {
+  for(i = 0; i < c; ++i) {
     char *argv[5] = {"consumer", ct1s, ct2s, pis, NULL};
     if ((consumer_pids[i] = fork()) < 0) {
       perror("fork consumer");
@@ -304,7 +306,7 @@ void producer_consumer_process(int n, int b)
     }
   }
 
-  for(int i = 0; i < p; ++i) {
+  for(i = 0; i < p; ++i) {
     char *argv[5] = {"producer", bs, pts, rss, NULL};
     if ((producer_pids[i] = fork()) < 0) {
       perror("fork producer");
@@ -321,7 +323,7 @@ void producer_consumer_process(int n, int b)
   int num_iterations = t / LOG_TIME;
   struct msqid_ds buffer_status;
 
-  for(int i = 0; i < num_iterations; ++i) {
+  for(i = 0; i < num_iterations; ++i) {
     sleep(LOG_TIME);
     if (msgctl(msqid_info, IPC_STAT, &buffer_status)) {
         perror("msgctl");
@@ -363,11 +365,11 @@ void producer_consumer_process(int n, int b)
   }
 
   // End all child processes
-  for(int i = 0; i < c; ++i) {
+  for(i = 0; i < c; ++i) {
     kill(consumer_pids[i], SIGKILL);
   }
 
-  for(int i = 0; i < p; ++i) {
+  for(i = 0; i < p; ++i) {
     kill(producer_pids[i], SIGKILL);
   }
 
