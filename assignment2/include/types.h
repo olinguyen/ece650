@@ -2,6 +2,7 @@
 #define TYPES_H
 #include <pthread.h>
 
+#define LOG_TIME 5
 
 typedef struct {
 } info_t;

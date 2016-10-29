@@ -69,7 +69,7 @@ int main(int argc, char** argv) {
   while (1) {
     gettimeofday(&transmit_end, NULL);
     time_t elapsed = transmit_end.tv_sec - transmit_start.tv_sec;
-    if (previous_time != elapsed && elapsed % 5 == 0) {
+    if (previous_time != elapsed && elapsed % LOG_TIME == 0) {
       infobuf.producer_block_time = producer_block_time;
       infobuf.producer_blocked = producer_blocked;
       size_t buf_length = sizeof(infobuf) - sizeof(long);

@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
   do {
     gettimeofday(&transmit_end, NULL);
     time_t elapsed = transmit_end.tv_sec - transmit_start.tv_sec;
-    if (previous_time != elapsed && elapsed % 1 == 0) {
+    if (previous_time != elapsed && elapsed % LOG_TIME == 0) {
       sbuf.requests_completed = requests_completed;
       sbuf.consumer_block_time = consumer_block_time;
       sbuf.consumer_blocked = consumer_blocked;

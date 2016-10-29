@@ -33,7 +33,7 @@ struct timeval producer_blocks_start[MAX_PRODUCERS], producer_blocks_end[MAX_PRO
 
 double producer_block_time = 0.0, consumer_block_time = 0.0;
 
-int t = 100; // total time of execution
+int t = 50; // total time of execution
 int b = 128; // buffer size
 int p = 1; // number of producers
 int c = 1; // number of consumers
@@ -65,7 +65,6 @@ int main(int argc, char** argv) {
     printf("Invalid number of arguments.\n");
   } else {
 
-    /*
     t = strtol(argv[1], NULL, 10); // total time of execution
     b = strtol(argv[2], NULL, 10); // buffer size
     p = strtol(argv[3], NULL, 10); // number of producers
@@ -75,14 +74,12 @@ int main(int argc, char** argv) {
     ct1 = atof(argv[7]); // prob. dist. for the random time Ct1 that the consumers take with probability pi
     ct2 = atof(argv[8]); // prob. dist. for the random time Ct2 that the consumers take with probability 1-pi
     pi = atof(argv[9]); // probability pi
-    */
 
     struct timeval program_start, program_end;
     gettimeofday(&program_start, NULL);
 
     //producer_consumer_thread(p, c, b);
     int n = 32;
-    b = 128;
     producer_consumer_process(n, b);
 
     gettimeofday(&program_end, NULL);
@@ -321,11 +318,11 @@ void producer_consumer_process(int n, int b)
   //ProducerProcess();
   // wait for child process to return
   int status;
-  int num_iterations = t / 10;
+  int num_iterations = t / LOG_TIME;
   struct msqid_ds buffer_status;
 
   for(int i = 0; i < num_iterations; ++i) {
-    sleep(1);
+    sleep(LOG_TIME);
     if (msgctl(msqid_info, IPC_STAT, &buffer_status)) {
         perror("msgctl");
         exit(1);
