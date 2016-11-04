@@ -56,7 +56,7 @@ void* ProducerThread(void *a);
 void ConsumerProcess();
 void ProducerProcess();
 
-void producer_consumer_process(int n, int b);
+void producer_consumer_process(int b);
 
 
 int main(int argc, char** argv) {
@@ -79,8 +79,7 @@ int main(int argc, char** argv) {
     gettimeofday(&program_start, NULL);
 
     //producer_consumer_thread(p, c, b);
-    int n = 32;
-    producer_consumer_process(n, b);
+    producer_consumer_process(b);
 
     gettimeofday(&program_end, NULL);
 
@@ -125,11 +124,11 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
          "producer_blocked,consumer_blocked,producer_block_time,"
          "consumer_block_time\n");
   */
-  int num_iterations = t / 10;
+  int num_iterations = t / LOG_TIME;
 
 	// periodically print info
 	for (i = 0; i < num_iterations; ++i) {
-		sleep(10.0);
+		sleep(LOG_TIME);
 
     if (VERBOSE) {
       printf("%d, P=%d, C=%d\n", i, num_producers, num_consumers);
@@ -270,7 +269,7 @@ void* ConsumerThread(void *a)
   }
 }
 
-void producer_consumer_process(int n, int b)
+void producer_consumer_process(int b)
 {
   int i;
   int msqid_info;
@@ -372,105 +371,4 @@ void producer_consumer_process(int n, int b)
   for(i = 0; i < p; ++i) {
     kill(producer_pids[i], SIGKILL);
   }
-
-  //printf("Producer blocked %d times for %.5f seconds\n", \
-    producer_blocked, producer_block_time);
-
-  /*
-  if ((pid = fork()) == 0) {
-
-#if DEBUG
-    printf("Consumer process started!\n");
-#endif
-    execvp("./consumer", argv);
-  } else {
-    ProducerProcess();
-    // wait for child process to return
-    int status;
-    wait(&status);
-  }
-  printf("Producer blocked %d times for %.5f seconds\n", \
-      producer_blocked, producer_block_time);
-  */
-}
-
-
-void ProducerProcess() {
-  int n = 1000;
-  //execvp("./producer", argv);
-  gettimeofday(&transmit_start, NULL);
-#if DEBUG
-  printf("Producer process started!\n");
-#endif
-  int id = 0;
-
-  int msqid, msqid_info;
-  int msgflg = IPC_CREAT | 0660;
-  key_t producer_key = MSQID, info_key = MSQID + 1;
-  message_buf sbuf = {
-    .mtype = 1,
-    .remaining = n,
-    .is_buffer_full = false
-  };
-
-  message_buf rbuf;
-  size_t buf_length;
-
-  if ((msqid = msgget(producer_key, msgflg )) < 0) {
-    perror("msgget");
-    exit(1);
-  }
-
-  if ((msqid_info = msgget(info_key, msgflg)) < 0) {
-    perror("msgget");
-    exit(1);
-  }
-
-  while (sbuf.remaining > 0) {
-    double request_wait_time = normal_distribution(pt * 10000, STDEV) / 10000.0;
-    sleep(request_wait_time);
-    // size of request to be transmitted (cannot exceed buffer size)
-    int request_size = (int) normal_distribution(rs, STDEV * 4);
-    bool is_blocked = false;
-    struct msqid_ds buffer_status;
-
-    gettimeofday(&producer_block_start, NULL);
-    // block if buffer is full
-    do {
-      if (msgctl(msqid, IPC_STAT, &buffer_status)) {
-          perror("msgctl");
-          exit(1);
-      }
-      if (buffer_status.msg_cbytes + request_size >= b && !is_blocked) {
-        is_blocked = true;
-        ++producer_blocked;
-#if DEBUG
-        //printf("producer blocked %d times! Messages on queue: %d, bytes on queue: %d\n", producer_blocked, buffer_status.msg_qnum, buffer_status.msg_cbytes);
-#endif
-      }
-    } while (buffer_status.msg_cbytes + request_size >= b);
-
-    gettimeofday(&producer_block_end, NULL);
-    if (is_blocked) {
-      producer_block_time += ((producer_block_end.tv_sec + producer_block_end.tv_usec / 1000000.0) \
-          - (producer_block_start.tv_sec + producer_block_start.tv_usec / 1000000.0));
-    }
-
-    // generate requests
-    --sbuf.remaining;
-
-    //buf_length = sizeof(sbuf) - sizeof(long);
-    buf_length = request_size;
-
-    if (msgsnd(msqid, &sbuf, buf_length, IPC_NOWAIT) < 0) {
-      perror("msgsnd (producer)");
-      exit(1);
-    } else {
-#if DEBUG
-      //printf("...[%d] producer sent %d, %c\n", sbuf.remaining, sbuf.item, sbuf.buffer[0]);
-#endif
-    }
-  }
-
-  gettimeofday(&transmit_end, NULL);
 }
