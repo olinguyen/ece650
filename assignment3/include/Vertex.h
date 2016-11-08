@@ -21,13 +21,17 @@ class Vertex {
   private:
     vertex_type mType;
     string mName;
-    vector<Edge> mAdjacencyList;
+    int mId;
+    PointOfInterest mPoi;
     
   public:
+    vector<Edge> mAdjacencyList;
+
     Vertex();
-    Vertex(string iName, vertex_type iType);
+    Vertex(vertex_type iType, string iName, int id);
     void printInfo();
     string getName();
+    int getId();
 };
 
 

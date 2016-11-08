@@ -3,14 +3,17 @@
 
 #include "Vertex.h"
 #include "Edge.h"
+#include "Graph.h"
 
 using namespace std;
 
-int main(int argc, char** argv) {
-  Vertex A("A", POI), B("B", POI);
 
-  Edge e(A, B, 1.0, 1.0);
-  e.printInfo();
+int main(int argc, char** argv) {
+  Graph g;
+  
+  g.addVertex(POI, "A");
+  g.addVertex(POI, "B");
+
 
   return 0;
 }

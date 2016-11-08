@@ -18,6 +18,7 @@ class Graph {
     Graph();
     Graph(int v);
 
+    void addVertex(vertex_type type, string name);
     void addEdge(Vertex src, Vertex dst, double speed, double length);
     void edgeEvent(Edge e, event_type event);
     Vertex vertex(PointOfInterest poi);

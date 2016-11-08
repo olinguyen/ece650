@@ -4,8 +4,8 @@
 Vertex::Vertex() {
 }
 
-Vertex::Vertex(string iName, vertex_type iType)
-  : mName(iName), mType(iType)
+Vertex::Vertex(vertex_type iType, string iName, int id)
+  : mName(iName), mType(iType), mId(id)
 {
 }
 
@@ -17,18 +17,21 @@ void Vertex::printInfo() {
   cout << "Type: ";
   switch(mType) {
     case POI:
-      cout << "Point-of-interest:";
+      cout << "POI [";
       break;
     case INTERSECTION:
-      cout << "Intersection:";
+      cout << "Intersection : ";
       break;
     case POI_AND_INTERSECTION:
-      cout << "Point-of-interest:";
+      cout << "Point-of-interest : ";
       break;
     default:
-      cout << "Unknown type:";
+      cout << "Unknown type : ";
   }
 
   cout << mName << endl;
+}
 
+int Vertex::getId() {
+  return mId;
 }
