@@ -1,22 +1,25 @@
 CC = g++
 LIBS = -lm -lpthread
 INCPATH = ./include
-CFLAGS = -g -Wall -I$(INCPATH) #-std=c99
+CFLAGS = -g -Wall -I$(INCPATH) -Wno-reorder -std=c++11#-std=c99
 
-OBJ = roadmap.o vertex.o
+OBJ = Vertex.o Edge.o Graph.o
 
 %.o: src/%.cpp
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-all: main roadmap vertex
+all: main
 
-main: main.o vertex.o roadmap.o
+main: main.o Vertex.o Edge.o Graph.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
-roadmap: roadmap.o
+vertex: Vertex.o Edge.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
-vertex: vertex.o
+edge: Edge.o Vertex.o
+	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
+
+graph: Graph.o Edge.o Vertex.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
 .PHONY: clean
