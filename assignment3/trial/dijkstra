@@ -1,0 +1,110 @@
+#include <fstream>
+#include <functional>
+#include <climits>
+#include <vector>
+#include <queue>
+#include <list>
+#include <iostream>
+using namespace std;
+
+struct node {
+	int vertex;
+	double weight;
+	node(int v, double w) : vertex(v), weight(w) { };
+	node() { }
+};
+
+class CompareGreater {
+	public:
+		bool const operator()(node &nodeX, node &nodeY) {
+			return (nodeX.weight > nodeY.weight) ;
+		}
+};
+
+vector< list<node> > adj;
+vector<double> weights;
+priority_queue<node, vector<node>, CompareGreater> Q;
+
+int nrVertices, nrEdges;
+
+void readData();
+void Dijkstra(node);
+void writeData();
+
+
+
+
+
+void readData() {
+	fstream in("dijkstra.in", ios::in);
+
+	int nodeX, nodeY;
+	double weight;
+
+	in >> nrVertices >> nrEdges;
+
+	adj.resize(nrVertices+1);
+	weights.resize(nrVertices+1);
+
+	for (int i = 1; i <= nrVertices; ++i) {
+		weights.at(i) = INT_MAX;
+	}
+
+	for (int i = 1; i <= nrEdges; ++i) {
+		in >> nodeX >> nodeY >> weight;
+		adj[nodeX].push_back(node(nodeY, weight));
+	}
+
+	in.close();
+}
+
+void Dijkstra(node startNode) {
+	node currentNode;
+
+	weights[startNode.vertex] = 0;
+	Q.push(startNode);
+
+	while (!Q.empty()) {
+		currentNode = Q.top();
+		Q.pop();
+
+		if (currentNode.weight <= weights[currentNode.vertex]) {
+			for (list<node>::iterator it = adj[currentNode.vertex].begin(); it != adj[currentNode.vertex].end(); ++it) {
+				if (weights[it->vertex] > weights[currentNode.vertex] + it->weight) {
+					weights[it->vertex] = weights[currentNode.vertex] + it->weight;
+					Q.push(node((it->vertex), weights[it->vertex]));
+				}
+			}
+		}
+	}
+}
+
+
+void shortest_path(node startNode,node endNode)
+{
+	Dijkstra(startNode);
+	int end = endNode.vertex;
+	double w = weights.at(end + 1);
+	cout<<"the shortest path to the node "<<endNode.vertex<< "is "<<w<<endl;  
+}
+
+void writeData() {
+	fstream out("dijkstra.out", ios::out);
+
+	weights.resize(nrVertices+1);
+	for (vector<double>::iterator it = weights.begin()+1; it != weights.end(); ++it) {
+		out << (*it) << " ";
+	}
+
+	out.close();
+}
+
+int main(int argc, char *argv[]) {
+
+	readData();
+	Dijkstra(node(1, 0));
+	writeData();
+	shortest_path(node(1,0),node(3,4));
+	return 0;
+}
+
