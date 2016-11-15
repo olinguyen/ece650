@@ -13,18 +13,23 @@ using namespace std;
 class Graph {
   private:
     int mNumVertices;
-    vector<Vertex> mVertexList;
+    int mNumEdges;
+    int mNumPoi;
   public:
+    vector<Vertex> mVertexList;
     Graph();
-    Graph(int v);
+    Graph(int v, int e);
 
-    void addVertex(vertex_type type, string name);
-    void addEdge(Vertex src, Vertex dst, double speed, double length);
-    void edgeEvent(Edge e, event_type event);
+    Vertex& addVertex(vertex_type type, string name);
+    Edge& addEdge(Vertex src, Vertex dst, bool directional, double speed, double length);
+		Edge& addEdge(int iSrcId, int iDstId, bool directional, double speed, double length);
+    void edgeEvent(Edge& e, bool event);
     Vertex vertex(PointOfInterest poi);
     void trip(Vertex src, Vertex dst); // finds shortest path
     void store(string filename);
     void retrieve(string filename);
+    void printGraph();
+    void printEdges();
 };
 
 

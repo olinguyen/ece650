@@ -11,9 +11,18 @@ using namespace std;
 int main(int argc, char** argv) {
   Graph g;
   
-  g.addVertex(POI, "A");
-  g.addVertex(POI, "B");
+  /*
+  Vertex src = g.addVertex(POI, "A");
+  Vertex dst = g.addVertex(POI, "B");
 
+  g.addEdge(src, dst, 100.0, 100.0);
+
+  g.printGraph();
+  */
+  g.retrieve("dijkstra.in");
+
+  Vertex v = g.vertex("LIB");
+	g.printGraph();
 
   return 0;
 }

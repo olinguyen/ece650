@@ -9,6 +9,13 @@ Edge::Edge(Vertex iSrc, Vertex iDst, double iSpeed, double iLen)
 {
 }
 
+Edge::Edge(int iSrc, int iDst, double iSpeed, double iLen)
+  : mDstId(iDst),
+    mSrcId(iSrc),
+    mSpeed(iSpeed),
+    mLength(iLen)
+{
+}
 
 double Edge::getLength() {
   return mLength;
@@ -33,4 +40,12 @@ void Edge::printInfo() {
   cout << "Speed: " << mSpeed << " ";
   cout << "Length: " << mLength << endl;
 
+}
+
+bool Edge::getEvent() {
+  return mEvent;
+}
+
+void Edge::setEvent(bool iEvent) {
+  mEvent = iEvent;
 }

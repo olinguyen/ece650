@@ -28,10 +28,13 @@ class Vertex {
     vector<Edge> mAdjacencyList;
 
     Vertex();
-    Vertex(vertex_type iType, string iName, int id);
+    Vertex(vertex_type iType, string iName);
     void printInfo();
     string getName();
     int getId();
+    PointOfInterest getPoi();
+    void setPoi(const PointOfInterest &iPoi);
+    void setId(int id);
 };
 
 
