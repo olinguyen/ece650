@@ -17,19 +17,19 @@ Edge::Edge(int iSrc, int iDst, double iSpeed, double iLen)
 {
 }
 
-double Edge::getLength() {
+double Edge::getLength() const{
   return mLength;
 }
 
-double Edge::getSpeed() {
+double Edge::getSpeed() const{
   return mSpeed;
 }
 
-Vertex Edge::getDestination() {
+Vertex Edge::getDestination() const{
   return mDestination;
 }
 
-Vertex Edge::getSource() {
+Vertex Edge::getSource() const{
   return mSource;
 }
 
@@ -42,7 +42,7 @@ void Edge::printInfo() {
 
 }
 
-bool Edge::getEvent() {
+bool Edge::getEvent() const {
   return mEvent;
 }
 

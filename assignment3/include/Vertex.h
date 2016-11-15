@@ -29,9 +29,9 @@ class Vertex {
 
     Vertex();
     Vertex(vertex_type iType, string iName);
-    void printInfo();
+    void printInfo() const;
     string getName();
-    int getId();
+    int getId() const;
     PointOfInterest getPoi();
     void setPoi(const PointOfInterest &iPoi);
     void setId(int id);

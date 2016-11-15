@@ -23,11 +23,11 @@ class Edge {
     Edge(Vertex iSrc, Vertex iDst, double iSpeed, double iLen);
     Edge(int iSrc, int iDst, double iSpeed, double iLen);
     void printInfo();
-    double getLength();
-    double getSpeed();
-    Vertex getDestination();
-    Vertex getSource();
-		bool getEvent();
+    double getLength() const;
+    double getSpeed() const;
+    Vertex getDestination() const;
+    Vertex getSource() const;
+		bool getEvent() const;
 		void setEvent(bool iEvent);
 };
 

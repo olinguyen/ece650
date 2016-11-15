@@ -12,11 +12,11 @@ Vertex::Vertex(vertex_type iType, string iName)
 {
 }
 
-string Vertex::getName() {
+string Vertex::getName()  {
   return mName;
 }
 
-void Vertex::printInfo() {
+void Vertex::printInfo() const{
 	cout << "ID: " << mId << " ";
 
   cout << "Type: ";
@@ -38,7 +38,7 @@ void Vertex::printInfo() {
   cout << mName << endl;
 }
 
-int Vertex::getId() {
+int Vertex::getId() const{
   return mId;
 }
 

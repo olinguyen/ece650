@@ -19,7 +19,7 @@ class Graph {
     vector<Vertex> mVertexList;
     Graph();
     Graph(int v, int e);
-
+    void readData();
     Vertex& addVertex(vertex_type type, string name);
     Edge& addEdge(Vertex src, Vertex dst, bool directional, double speed, double length);
 		Edge& addEdge(int iSrcId, int iDstId, bool directional, double speed, double length);
