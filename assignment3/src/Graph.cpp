@@ -179,6 +179,7 @@ void Graph::readData() {
 	//this->retrieve("dijkstra.in");
 	mNumEdges = 0;
 	
+	
 	for(vector<Vertex>::const_iterator i = this->mVertexList.begin(); i!=  this->mVertexList.end();++i)
 		for(vector<Edge>::const_iterator j = i->mAdjacencyList.begin(); j != i->mAdjacencyList.end();++j)
 		{
@@ -217,7 +218,7 @@ void Graph::trip(Vertex v1,Vertex v2) {
 	node startNode;
 	node endNode;
 	startNode.vertex = v1.getId();
-	
+	int keep[100];
 	endNode.vertex = v2.getId();
 	//startNode.vertex = 0;
 	//endNode.vertex = 5;
@@ -229,13 +230,17 @@ void Graph::trip(Vertex v1,Vertex v2) {
 	weights[startNode.vertex] = 0;
 	Q.push(startNode);
 	int l = 0;
+	int i = 0;
 	while (!Q.empty()) {
 		
 		currentNode = Q.top();
 		Q.pop();
 		cout<<"the current node is "<<currentNode.vertex<<endl;
 		if (currentNode.weight <= weights[currentNode.vertex]) {
-			out<<currentNode.vertex<<" ";
+			//out<<currentNode.vertex<<" ";
+			i++;
+			keep[i] = currentNode.vertex;
+			
 			for (list<node>::iterator it = adj[currentNode.vertex].begin(); it != adj[currentNode.vertex].end(); ++it) {
 				if (weights[it->vertex] > weights[currentNode.vertex] + it->weight) {
 					weights[it->vertex] = weights[currentNode.vertex] + it->weight;
@@ -259,14 +264,16 @@ void Graph::trip(Vertex v1,Vertex v2) {
 	}
 	else
 	{
-		int s = startNode.vertex;	
+		//int s = startNode.vertex;	
 		fstream in("dijkstra.out", ios::in);
 		cout<<"the path is"<<endl;
-		while(in >> s)
-		{
-			cout<<s<<" ";
+		//while(in >> s)
+		//{
+		//	cout<<s<<" ";
 			
-		}
+		//}
+		for(int k=1;k<=i;k++)
+			cout<<keep[k]<<" ";
 		cout<<endl;
 		int end = endNode.vertex;
 		double w = weights.at(end);
