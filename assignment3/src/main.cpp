@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <assert.h>
 
 #include "Vertex.h"
 #include "Edge.h"
@@ -10,28 +11,19 @@ using namespace std;
 
 int main(int argc, char** argv) {
   Graph g;
-  
-  /*
-  Vertex src = g.addVertex(POI, "A");
-  Vertex dst = g.addVertex(POI, "B");
 
-  g.addEdge(src, dst, 100.0, 100.0);
-
-  g.printGraph();
-  */
-  //g.retrieve("dijkstra.in");
-
-
- // Vertex src = g.addVertex(POI, "A");
- //Vertex dst = g.addVertex(POI, "B");
-
-//	g.printGraph();
- // g.retrieve("dijkstra.in");
+ //	g.printGraph();
   g.retrieve("dijkstra.in");
+
   Vertex v1 = g.vertex("DC");
   Vertex v2 = g.vertex("LIB");
-//g.printGraph();
-  g.trip(v1,v2);
+
+  static const int arr[] = {0, 2, 4, 1, 5};
+  vector<int> ground_truth(arr, arr + sizeof(arr) / sizeof(arr[0]) );
+  vector<int> output = g.trip(v1,v2);
+  assert(output == ground_truth);
+
+  g.store("dijkstra.out");
 
   return 0;
 }

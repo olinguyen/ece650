@@ -10,8 +10,7 @@
 #include <fstream>
 #include "Vertex.h"
 #include "Edge.h"
-#define DEBUG 1
-
+#define DEBUG 0
 
 struct node {
 	int vertex;
@@ -29,15 +28,11 @@ class CompareGreater {
 
 
 vector<double> weights;
-int flag = 1;
+int select_weight = 1;
 vector<int> direction;
 vector<int> event;
 priority_queue<node, vector<node>, CompareGreater> Q;
 vector< list<node> > adj;
-//int nrVertices = 0, nrEdges = 0;
-
-
-
 
 
 Graph::Graph() 
@@ -59,7 +54,7 @@ Vertex& Graph::addVertex(vertex_type type, string name)
 }
 
 Edge& Graph::addEdge(Vertex src, Vertex dst, bool directional, \
-                    double speed, double length)
+                     double speed, double length)
 {
   int srcIndex = src.getId(); 
   int dstIndex = dst.getId();
@@ -111,6 +106,32 @@ Vertex Graph::vertex(PointOfInterest iPoi)
 
 void Graph::store(string filename)
 {
+  fstream outfile(filename, ios::out);
+  int wDirection = 1;
+  outfile << mNumVertices << " " << mNumEdges << endl; 
+  for(size_t i = 0; i < mVertexList.size(); ++i) {
+    Vertex wVertex = mVertexList[i];
+    vertex_type wType = wVertex.getType();
+    outfile << wVertex.getId() << " " << wVertex.getName() \
+            << " " << wType;
+
+    if (wType == POI || wType == POI_AND_INTERSECTION) {
+      outfile << " " << wVertex.getPoi();
+    }
+    outfile << endl;
+  }
+
+  for(size_t i = 0; i < mVertexList.size(); ++i) {
+    for(size_t j = 0; j < mVertexList[i].mAdjacencyList.size(); ++j) {
+        Edge wEdge = mVertexList[i].mAdjacencyList[j];
+
+      outfile << wEdge.getSource().getId() << " "     \
+              << wEdge.getDestination().getId() << " "  \
+              << wDirection << " " << wEdge.getSpeed() << " " \
+              << wEdge.getLength() << " " << wEdge.getEvent() \
+              << endl;
+    }
+  }
 }
 
 void Graph::retrieve(string filename)
@@ -175,54 +196,41 @@ void Graph::printGraph()
 
 
 void Graph::readData() {
-	
-	//this->retrieve("dijkstra.in");
 	mNumEdges = 0;
 	
-	
-	for(vector<Vertex>::const_iterator i = this->mVertexList.begin(); i!=  this->mVertexList.end();++i)
-		for(vector<Edge>::const_iterator j = i->mAdjacencyList.begin(); j != i->mAdjacencyList.end();++j)
-		{
+	for(vector<Vertex>::const_iterator i = mVertexList.begin(); i!=  mVertexList.end();++i) {
+		for(vector<Edge>::const_iterator j = i->mAdjacencyList.begin(); j != i->mAdjacencyList.end();++j) {
 			if(j->getEvent() != 1)
 				mNumEdges++;
 		} 
+  }
 	adj.resize(mNumVertices);
 	weights.resize(mNumVertices);
 	for (int i = 0; i < mNumVertices; ++i) {
 		weights.at(i) = INT_MAX;
 	}
 	
-	for(vector<Vertex>::const_iterator i = this->mVertexList.begin(); i!=  this->mVertexList.end();++i)
-	  for(vector<Edge>::const_iterator j = i->mAdjacencyList.begin(); j != i->mAdjacencyList.end();++j)
-		{
-			if(flag == 1)
-			{
+	for(vector<Vertex>::const_iterator i = mVertexList.begin(); i!=  mVertexList.end();++i) {
+	  for(vector<Edge>::const_iterator j = i->mAdjacencyList.begin(); j != i->mAdjacencyList.end();++j) {
+			if(select_weight == 1) {
 				if(j->getEvent() != 1)
 					adj[(j->getSource()).getId()].push_back(node((j-> getDestination()).getId(), (j->getLength())));
-			}
-			else
-			{
+			} else {
 				if(j->getEvent() != 1)
 					adj[(j->getSource()).getId()].push_back(node((j-> getDestination()).getId(), (j->getLength()/j->getSpeed())));
 			}
-			
-
 		}
-        
-
+  }
 }
 
 
-void Graph::trip(Vertex v1,Vertex v2) {
+vector<int> Graph::trip(Vertex v1,Vertex v2) {
 	readData();
 	node startNode;
 	node endNode;
 	startNode.vertex = v1.getId();
-	int keep[100];
 	endNode.vertex = v2.getId();
-	//startNode.vertex = 0;
-	//endNode.vertex = 5;
-	fstream out("dijkstra.out", ios::out);
+  vector<int> wPath;
 
 	startNode.weight = 0;
 	endNode.weight = 0;
@@ -230,16 +238,16 @@ void Graph::trip(Vertex v1,Vertex v2) {
 	weights[startNode.vertex] = 0;
 	Q.push(startNode);
 	int l = 0;
-	int i = 0;
 	while (!Q.empty()) {
 		
 		currentNode = Q.top();
 		Q.pop();
-		cout<<"the current node is "<<currentNode.vertex<<endl;
+#if DEBUG
+		cout << "the current node is " << currentNode.vertex << endl;
+#endif
 		if (currentNode.weight <= weights[currentNode.vertex]) {
 			//out<<currentNode.vertex<<" ";
-			i++;
-			keep[i] = currentNode.vertex;
+			wPath.push_back(currentNode.vertex);
 			
 			for (list<node>::iterator it = adj[currentNode.vertex].begin(); it != adj[currentNode.vertex].end(); ++it) {
 				if (weights[it->vertex] > weights[currentNode.vertex] + it->weight) {
@@ -249,35 +257,28 @@ void Graph::trip(Vertex v1,Vertex v2) {
 			}
 		}
 		
-	if(currentNode.vertex == endNode.vertex)
-	{
-		l =1;
-		out.close();
-		break;
-		
-		
+    if(currentNode.vertex == endNode.vertex) {
+      l = 1;
+      break;
+    }
 	}
-	}
-	if(l == 0)
-	{
+
+	if(l == 0) {
 		cout<<"Path could not be found"<<endl;
-	}
-	else
-	{
-		//int s = startNode.vertex;	
-		fstream in("dijkstra.out", ios::in);
-		cout<<"the path is"<<endl;
-		//while(in >> s)
-		//{
-		//	cout<<s<<" ";
-			
-		//}
-		for(int k=1;k<=i;k++)
-			cout<<keep[k]<<" ";
-		cout<<endl;
+	} else {
+
+		for(size_t k = 0; k < wPath.size(); k++) {
+			cout << wPath[k] << " ";
+    }
+		cout << endl;
+
 		int end = endNode.vertex;
 		double w = weights.at(end);
-		cout<<"the shortest length of path to the node "<<endNode.vertex<< " is "<<w<<endl;  
-		out.close();
+		cout << "the shortest length of path to the node " << endNode.vertex << " is " << w << endl;  
 	}
+  return wPath;
+}
+
+void Graph::road(vector<Edge> iEdges) {
+  mRoads.push_back(iEdges);
 }

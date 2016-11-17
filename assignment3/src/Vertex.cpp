@@ -46,6 +46,10 @@ PointOfInterest Vertex::getPoi() {
   return mPoi;
 }
 
+vertex_type Vertex::getType() {
+  return mType;
+}
+
 void Vertex::setPoi(const PointOfInterest &iPoi) {
   mPoi = iPoi;
 }

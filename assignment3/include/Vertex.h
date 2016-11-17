@@ -35,6 +35,7 @@ class Vertex {
     PointOfInterest getPoi();
     void setPoi(const PointOfInterest &iPoi);
     void setId(int id);
+    vertex_type getType();
 };
 
 

@@ -15,6 +15,7 @@ class Graph {
     int mNumVertices;
     int mNumEdges;
     int mNumPoi;
+    vector<vector<Edge>> mRoads;
   public:
     vector<Vertex> mVertexList;
     Graph();
@@ -25,11 +26,12 @@ class Graph {
 		Edge& addEdge(int iSrcId, int iDstId, bool directional, double speed, double length);
     void edgeEvent(Edge& e, bool event);
     Vertex vertex(PointOfInterest poi);
-    void trip(Vertex src, Vertex dst); // finds shortest path
+    vector<int> trip(Vertex src, Vertex dst); // finds shortest path
     void store(string filename);
     void retrieve(string filename);
     void printGraph();
     void printEdges();
+    void road(vector<Edge> iEdges);
 };
 
 
