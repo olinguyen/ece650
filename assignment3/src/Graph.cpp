@@ -10,7 +10,7 @@
 #include <fstream>
 #include "Vertex.h"
 #include "Edge.h"
-#define DEBUG 0
+#define DEBUG 1
 
 struct node {
 	int vertex;
@@ -136,6 +136,7 @@ void Graph::store(string filename)
 
 void Graph::retrieve(string filename)
 {
+
   fstream infile(filename, ios::in);
   int wNodeXId, wNodeYId, wDirection, wType, wEvent;
   double wLength, wSpeed;
@@ -209,6 +210,7 @@ void Graph::readData() {
 	for (int i = 0; i < mNumVertices; ++i) {
 		weights.at(i) = INT_MAX;
 	}
+  cout<<"the total number of edges is"<<mNumEdges<<endl;
 	
 	for(vector<Vertex>::const_iterator i = mVertexList.begin(); i!=  mVertexList.end();++i) {
 	  for(vector<Edge>::const_iterator j = i->mAdjacencyList.begin(); j != i->mAdjacencyList.end();++j) {
@@ -222,16 +224,29 @@ void Graph::readData() {
 		}
   }
 }
+void Graph::printPath(vector<int> wPath, int j)
+{
+    // Base Case : If j is source
+    if (wPath[j]==-1)
+        return;
+ 
+    printPath(wPath, wPath[j]);
+ 
+    cout<<j<<" ";
+}
 
-
-vector<int> Graph::trip(Vertex v1,Vertex v2) {
+void Graph::trip(Vertex v1,Vertex v2) {
 	readData();
+  
 	node startNode;
 	node endNode;
 	startNode.vertex = v1.getId();
 	endNode.vertex = v2.getId();
   vector<int> wPath;
-
+  //int parent[100];
+  
+  wPath.resize(mNumVertices);
+  wPath[startNode.vertex] = -1;
 	startNode.weight = 0;
 	endNode.weight = 0;
 	node currentNode;
@@ -241,17 +256,23 @@ vector<int> Graph::trip(Vertex v1,Vertex v2) {
 	while (!Q.empty()) {
 		
 		currentNode = Q.top();
+    
 		Q.pop();
+    //priority_queue<node, vector<node>, CompareGreater> Q;
+    //Q = priority_queue<node, vector<node>, CompareGreater>();
 #if DEBUG
 		cout << "the current node is " << currentNode.vertex << endl;
+    for(list<node>::iterator it = adj[currentNode.vertex].begin(); it != adj[currentNode.vertex].end(); ++it)
+        cout<<"The adjacency list for"<<it->vertex<<endl; 
 #endif
 		if (currentNode.weight <= weights[currentNode.vertex]) {
-			//out<<currentNode.vertex<<" ";
-			wPath.push_back(currentNode.vertex);
+			//cout<<currentNode.vertex<<" ";
+			//wPath.push_back(currentNode.vertex);
 			
 			for (list<node>::iterator it = adj[currentNode.vertex].begin(); it != adj[currentNode.vertex].end(); ++it) {
 				if (weights[it->vertex] > weights[currentNode.vertex] + it->weight) {
 					weights[it->vertex] = weights[currentNode.vertex] + it->weight;
+          wPath[it->vertex] = currentNode.vertex;
 					Q.push(node((it->vertex), weights[it->vertex]));
 				}
 			}
@@ -266,18 +287,16 @@ vector<int> Graph::trip(Vertex v1,Vertex v2) {
 	if(l == 0) {
 		cout<<"Path could not be found"<<endl;
 	} else {
-
-		for(size_t k = 0; k < wPath.size(); k++) {
-			cout << wPath[k] << " ";
-    }
-		cout << endl;
-
+    cout<<startNode.vertex<<" ";
+    printPath(wPath, endNode.vertex);
+		//cout << endl;
 		int end = endNode.vertex;
 		double w = weights.at(end);
 		cout << "the shortest length of path to the node " << endNode.vertex << " is " << w << endl;  
-	}
-  return wPath;
 }
+}
+  //return wPath;
+//}
 
 void Graph::road(vector<Edge> iEdges) {
   mRoads.push_back(iEdges);
