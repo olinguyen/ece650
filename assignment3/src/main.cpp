@@ -15,9 +15,15 @@ int main(int argc, char** argv) {
     g.retrieve("dijkstra.in");
     Vertex v1 = g.vertex("DC");
     Vertex v2 = g.vertex("LIB");
+
     //static const int arr_closure[] = {0, 2, 4, 5};
     //vector<int> ground_truth_closure(arr_closure, arr_closure + sizeof(arr_closure) / sizeof(arr_closure[0]) );
-    g.trip(v1,v2);
+    vector<int> output = g.trip(v1,v2);
+    for(int i = 0;i<output.size();i++)
+        cout<<output[i]<<" ";
+
+    cout<<endl;
+
     //assert(output == ground_truth_closure);
   }
 /*
