@@ -12,15 +12,15 @@ using namespace std;
 int main(int argc, char** argv) {
   {
     Graph g;
-    g.retrieve("short_path.in");
+    g.retrieve("dijkstra.in");
     Vertex v1 = g.vertex("DC");
     Vertex v2 = g.vertex("LIB");
-    static const int arr_closure[] = {0, 2, 4, 5};
-    vector<int> ground_truth_closure(arr_closure, arr_closure + sizeof(arr_closure) / sizeof(arr_closure[0]) );
-    vector<int> output = g.trip(v1,v2);
-    assert(output == ground_truth_closure);
+    //static const int arr_closure[] = {0, 2, 4, 5};
+    //vector<int> ground_truth_closure(arr_closure, arr_closure + sizeof(arr_closure) / sizeof(arr_closure[0]) );
+    g.trip(v1,v2);
+    //assert(output == ground_truth_closure);
   }
-
+/*
   {
     Graph g;
     g.retrieve("longer_path.in");
@@ -59,6 +59,6 @@ int main(int argc, char** argv) {
   }
 
   //g.store("dijkstra.out");
-
+*/
   return 0;
 }
