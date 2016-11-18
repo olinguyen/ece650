@@ -35,12 +35,12 @@ priority_queue<node, vector<node>, CompareGreater> Q;
 vector< list<node> > adj;
 
 
-Graph::Graph() 
+Graph::Graph()
   : mNumVertices(0)
 {
 }
 
-Graph::Graph(int v, int e) 
+Graph::Graph(int v, int e)
   : mNumVertices(v)
   , mNumEdges(e)
 {
@@ -56,7 +56,7 @@ Vertex& Graph::addVertex(vertex_type type, string name)
 Edge& Graph::addEdge(Vertex src, Vertex dst, bool directional, \
                      double speed, double length)
 {
-  int srcIndex = src.getId(); 
+  int srcIndex = src.getId();
   int dstIndex = dst.getId();
 
   Edge e(src, dst, speed, length);
@@ -72,8 +72,8 @@ Edge& Graph::addEdge(Vertex src, Vertex dst, bool directional, \
 Edge& Graph::addEdge(int iSrcId, int iDstId, bool directional, \
                     double speed, double length)
 {
-	Vertex& src = mVertexList[iSrcId];	
-	Vertex& dst = mVertexList[iDstId];	
+	Vertex& src = mVertexList[iSrcId];
+	Vertex& dst = mVertexList[iDstId];
 
   Edge e(src, dst, speed, length);
   src.mAdjacencyList.push_back(e);
@@ -108,7 +108,7 @@ void Graph::store(string filename)
 {
   fstream outfile(filename, ios::out);
   int wDirection = 1;
-  outfile << mNumVertices << " " << mNumEdges << endl; 
+  outfile << mNumVertices << " " << mNumEdges << endl;
   for(size_t i = 0; i < mVertexList.size(); ++i) {
     Vertex wVertex = mVertexList[i];
     vertex_type wType = wVertex.getType();
@@ -148,7 +148,7 @@ void Graph::retrieve(string filename)
   cout << "Vertices: " << mNumVertices \
        << " , Edges: " << mNumEdges << endl;
 #endif
- 
+
   for (int i = 0; i < mNumVertices; ++i) {
     int wNodeId;
     infile >> wNodeId >> wNodeName >> wType;
@@ -164,7 +164,7 @@ void Graph::retrieve(string filename)
     }
 
   }
- 
+
   for (int i = 0; i < mNumEdges; ++i) {
 		infile >> wNodeXId >> wNodeYId >> wDirection \
 				   >> wSpeed >> wLength >> wEvent;
@@ -198,19 +198,21 @@ void Graph::printGraph()
 
 void Graph::readData() {
 	mNumEdges = 0;
-	
+  weights.clear();
+  adj.clear();
+
 	for(vector<Vertex>::const_iterator i = mVertexList.begin(); i!=  mVertexList.end();++i) {
 		for(vector<Edge>::const_iterator j = i->mAdjacencyList.begin(); j != i->mAdjacencyList.end();++j) {
 			if(j->getEvent() != 1)
 				mNumEdges++;
-		} 
+		}
   }
 	adj.resize(mNumVertices);
 	weights.resize(mNumVertices);
 	for (int i = 0; i < mNumVertices; ++i) {
 		weights.at(i) = INT_MAX;
 	}
-	
+
 	for(vector<Vertex>::const_iterator i = mVertexList.begin(); i!=  mVertexList.end();++i) {
 	  for(vector<Edge>::const_iterator j = i->mAdjacencyList.begin(); j != i->mAdjacencyList.end();++j) {
 			if(select_weight == 1) {
@@ -228,15 +230,15 @@ void Graph::readData() {
     // Base Case : If j is source
     if (wPath[j]==-1)
         return;
- 
+
     printPath(wPath, wPath[j]);
- 
+
     cout<<j<<" ";
 }*/
 
 vector<int> Graph::trip(Vertex v1,Vertex v2) {
 	readData();
-  
+
 	node startNode;
 	node endNode;
 	startNode.vertex = v1.getId();
@@ -255,21 +257,21 @@ vector<int> Graph::trip(Vertex v1,Vertex v2) {
   vector<int> s;
   s.resize(mNumVertices);
 	while (!Q.empty()) {
-		
+
 		currentNode = Q.top();
-    
+
 		Q.pop();
     //priority_queue<node, vector<node>, CompareGreater> Q;
     //Q = priority_queue<node, vector<node>, CompareGreater>();
 #if DEBUG
 		cout << "the current node is " << currentNode.vertex << endl;
     for(list<node>::iterator it = adj[currentNode.vertex].begin(); it != adj[currentNode.vertex].end(); ++it)
-        cout<<"The adjacency list for"<<it->vertex<<endl; 
+        cout<<"The adjacency list for"<<it->vertex<<endl;
 #endif
 		if (currentNode.weight <= weights[currentNode.vertex]) {
 			//cout<<currentNode.vertex<<" ";
 			//wPath.push_back(currentNode.vertex);
-			
+
 			for (list<node>::iterator it = adj[currentNode.vertex].begin(); it != adj[currentNode.vertex].end(); ++it) {
 				if (weights[it->vertex] > weights[currentNode.vertex] + it->weight) {
 					weights[it->vertex] = weights[currentNode.vertex] + it->weight;
@@ -278,7 +280,7 @@ vector<int> Graph::trip(Vertex v1,Vertex v2) {
 				}
 			}
 		}
-		
+
     if(currentNode.vertex == endNode.vertex) {
       l = 1;
       break;
@@ -292,7 +294,7 @@ vector<int> Graph::trip(Vertex v1,Vertex v2) {
 
     //printPath(wPath, endNode.vertex);
      s[0] = endNode.vertex;
-    
+
      //cout<<"the array wpath is"<<endl;
      //for(int k = 0; k< wPath.size();k++)
 		   //     cout << wPath[k]<<" ";
@@ -300,14 +302,14 @@ vector<int> Graph::trip(Vertex v1,Vertex v2) {
 		while(s[i-1]!= -1)
     {
 
-     
-      
+
+
       s[i] = parent[s[i-1]];
       i++;
 
 
     }
-  
+
     for(int j=i-2;j>=0;j--)
     {
       //cout<<s[j]<<" ";
@@ -317,7 +319,7 @@ vector<int> Graph::trip(Vertex v1,Vertex v2) {
 
     //int end = endNode.vertex;
 		//double w = weights.at(end);
-		//cout << endl<<"the shortest length of path to the node " << endNode.vertex << " is " << w << endl;  
+		//cout << endl<<"the shortest length of path to the node " << endNode.vertex << " is " << w << endl;
 }
 
   return path;

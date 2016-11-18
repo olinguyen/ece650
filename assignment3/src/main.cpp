@@ -9,62 +9,34 @@
 using namespace std;
 
 
+bool test_roadmap(string input, vector<int> array) {
+    Graph g;
+
+    g.retrieve(input);
+
+    Vertex v1 = g.vertex("DC");
+    Vertex v2 = g.vertex("LIB");
+
+    vector<int> output = g.trip(v1,v2);
+    for(size_t i = 0; i < output.size(); ++i) {
+      cout << output[i] << " ";
+    }
+    cout << endl;
+
+    return (output == array);
+
+}
+
+
 int main(int argc, char** argv) {
-  {
-    Graph g;
-    g.retrieve("dijkstra.in");
-    Vertex v1 = g.vertex("DC");
-    Vertex v2 = g.vertex("LIB");
+  vector<int> normal_expected{0, 2, 4, 1, 5};
+  assert(test_roadmap("normal.in", normal_expected));
 
-    //static const int arr_closure[] = {0, 2, 4, 5};
-    //vector<int> ground_truth_closure(arr_closure, arr_closure + sizeof(arr_closure) / sizeof(arr_closure[0]) );
-    vector<int> output = g.trip(v1,v2);
-    for(int i = 0;i<output.size();i++)
-        cout<<output[i]<<" ";
+  vector<int> short_expected{0, 1, 5};
+  assert(test_roadmap("short_path.in", short_expected));
 
-    cout<<endl;
+  vector<int> long_expected{0, 1, 5};
+  assert(test_roadmap("path2.in", long_expected));
 
-    //assert(output == ground_truth_closure);
-  }
-/*
-  {
-    Graph g;
-    g.retrieve("longer_path.in");
-    Vertex v1 = g.vertex("DC");
-    Vertex v2 = g.vertex("LIB");
-    static const int arr_closure[] = {0, 2, 4, 5};
-    vector<int> ground_truth_closure(arr_closure, arr_closure + sizeof(arr_closure) / sizeof(arr_closure[0]) );
-    vector<int> output = g.trip(v1,v2);
-    assert(output == ground_truth_closure);
-  }
-
-  {
-    Graph g;
-    g.retrieve("normal.in");
-
-    Vertex v1 = g.vertex("DC");
-    Vertex v2 = g.vertex("LIB");
-
-    static const int arr[] = {0, 2, 4, 1, 5};
-    vector<int> ground_truth(arr, arr + sizeof(arr) / sizeof(arr[0]) );
-    vector<int> output = g.trip(v1,v2);
-    assert(output == ground_truth);
-  }
-
-  // Test w/ road closure
-
-  {
-    Graph g;
-    g.retrieve("closure.in");
-    Vertex v1 = g.vertex("DC");
-    Vertex v2 = g.vertex("LIB");
-    static const int arr_closure[] = {0, 2, 4, 5};
-    vector<int> ground_truth_closure(arr_closure, arr_closure + sizeof(arr_closure) / sizeof(arr_closure[0]) );
-    vector<int> output = g.trip(v1,v2);
-    assert(output == ground_truth_closure);
-  }
-
-  //g.store("dijkstra.out");
-*/
   return 0;
 }
