@@ -28,7 +28,7 @@ class CompareGreater {
 
 
 vector<double> weights;
-int select_weight = 1;
+int select_weight = 0;
 vector<int> direction;
 vector<int> event;
 priority_queue<node, vector<node>, CompareGreater> Q;
@@ -200,6 +200,10 @@ void Graph::readData() {
 	mNumEdges = 0;
   weights.clear();
   adj.clear();
+  Q = priority_queue<node, vector<node>, CompareGreater>();
+  direction.clear();
+  event.clear();
+
 
 	for(vector<Vertex>::const_iterator i = mVertexList.begin(); i!=  mVertexList.end();++i) {
 		for(vector<Edge>::const_iterator j = i->mAdjacencyList.begin(); j != i->mAdjacencyList.end();++j) {

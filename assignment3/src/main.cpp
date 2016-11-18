@@ -35,7 +35,10 @@ int main(int argc, char** argv) {
   vector<int> short_expected{0, 1, 5};
   assert(test_roadmap("short_path.in", short_expected));
 
-  vector<int> long_expected{0, 1, 5};
+  vector<int> closure_expected{0, 2, 1, 5};
+  assert(test_roadmap("closure.in", closure_expected));
+
+  vector<int> long_expected{0, 2, 4, 3};
   assert(test_roadmap("path2.in", long_expected));
 
   return 0;
