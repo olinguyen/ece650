@@ -9,6 +9,32 @@ void error(char *msg)
 	exit(1);
 }
 
+/*
+void check(char *sch)
+{
+
+	int i = sch[0] - '0';
+	printf("Here is the message: %s\n",sch);
+
+	if(i == 1)
+	{
+		printf("The first letter is 1 \n");
+		// Command 1 pass this to the first producer buffer 
+	}
+	else if(i == 0)
+	{
+		printf("The first letter is 0 \n");
+		// command 2:  pass this to the second producer buffer 
+ 	}
+	else
+	{
+		printf("Not allowed \n");
+	}
+
+}
+
+*/
+
 int main(int argc, char *argv[])
 {
 
@@ -56,6 +82,7 @@ int main(int argc, char *argv[])
 	bzero(buffer,256);
 
 	n = read(newsockfd,buffer,255);
+	//check(buffer);
 
 	if (n < 0)
 	{
