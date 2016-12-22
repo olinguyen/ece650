@@ -5,10 +5,10 @@ CFLAGS = -g -Wall -I$(INCPATH) -Wno-reorder -std=c++11#-std=c99
 
 OBJ = consumer.o producer.o test.o Vertex.o Edge.o Graph.o roadmap.o
 
-%.o: src/%*.c*
+%.o: src/%*.cpp*
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-all: main consumer producer roadmap
+all: main 
 
 consumer: consumer.o consume_produce.o random_distribution.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)

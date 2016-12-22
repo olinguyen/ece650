@@ -8,7 +8,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
-#include <sys/msg.h>
+//#include <sys/msg.h>
 #include <sys/wait.h>
 
 #include "random_distribution.h"
@@ -56,8 +56,6 @@ void* ProducerThread(void *a);
 void ConsumerProcess();
 void ProducerProcess();
 
-void producer_consumer_process(int b);
-
 
 int main(int argc, char** argv) {
   srandom(time(NULL));
@@ -78,8 +76,8 @@ int main(int argc, char** argv) {
     struct timeval program_start, program_end;
     gettimeofday(&program_start, NULL);
 
-    //producer_consumer_thread(p, c, b);
-    producer_consumer_process(b);
+    producer_consumer_thread(p, c, b);
+    //producer_consumer_process(b);
 
     gettimeofday(&program_end, NULL);
 
@@ -97,14 +95,14 @@ int main(int argc, char** argv) {
 void producer_consumer_thread(int num_consumers, int num_producers, int b) {
   int i;
 
-  SharedMemory sharedmem = {
-    .buffer_count = 0,
-    .buffer_size = b,
-    .buffer = buffer,
-    .lock = PTHREAD_MUTEX_INITIALIZER,
-    .produce_cond = PTHREAD_COND_INITIALIZER,
-    .consume_cond = PTHREAD_COND_INITIALIZER
-  };
+  SharedMemory sharedmem;
+  sharedmem.buffer_count = 0;
+  sharedmem.buffer_size = b;
+  sharedmem.buffer = buffer;
+  sharedmem.lock = PTHREAD_MUTEX_INITIALIZER;
+  sharedmem.produce_cond = PTHREAD_COND_INITIALIZER;
+  sharedmem.consume_cond = PTHREAD_COND_INITIALIZER;
+
   for (i = 0; i < MAX_BUFFER_SIZE; ++i) {
     buffer[i].processed = true;
   }
@@ -254,7 +252,6 @@ void* ConsumerThread(void *a)
     }
 
 		consume(ct1, ct2, pi, STDEV);
-    int consumed = sharedmem->buffer[buffer_idx].value;
     sharedmem->buffer[buffer_idx].processed = true;
     sharedmem->current_size -= sharedmem->buffer[buffer_idx].request_size;
 #if DEBUG
@@ -266,109 +263,5 @@ void* ConsumerThread(void *a)
 
     pthread_cond_signal(&sharedmem->produce_cond);
     pthread_mutex_unlock(&sharedmem->lock);
-  }
-}
-
-void producer_consumer_process(int b)
-{
-  int i;
-  int msqid_info;
-  int msgflg = IPC_CREAT | 0660;
-  key_t info_key = MSQID + 1;
-  message_buf rbuf;
-
-  if ((msqid_info = msgget(info_key, msgflg)) < 0) {
-    perror("msgget");
-    exit(1);
-  }
-
-  pid_t consumer_pids[MAX_CONSUMERS], \
-        producer_pids[MAX_PRODUCERS];
-
-  pid_t pid;
-
-  char pts[10], rss[5], ct1s[10], ct2s[10], pis[5], bs[5];
-  snprintf(pts, 10, "%f", pt);
-  snprintf(rss, 5, "%f", rs);
-  snprintf(ct1s, 10, "%f", ct1);
-  snprintf(ct2s, 10, "%f", ct2);
-  snprintf(pis, 5, "%f", pi);
-  snprintf(bs, 5, "%d", b);
-
-  for(i = 0; i < c; ++i) {
-    char *argv[5] = {"consumer", ct1s, ct2s, pis, NULL};
-    if ((consumer_pids[i] = fork()) < 0) {
-      perror("fork consumer");
-      abort();
-    } else if (consumer_pids[i] == 0) {
-      execvp("./consumer", argv);
-    }
-  }
-
-  for(i = 0; i < p; ++i) {
-    char *argv[5] = {"producer", bs, pts, rss, NULL};
-    if ((producer_pids[i] = fork()) < 0) {
-      perror("fork producer");
-      abort();
-    } else if (producer_pids[i] == 0) {
-      execvp("./producer", argv);
-    }
-  }
-
-
-  //ProducerProcess();
-  // wait for child process to return
-  int status;
-  int num_iterations = t / LOG_TIME;
-  struct msqid_ds buffer_status;
-
-  for(i = 0; i < num_iterations; ++i) {
-    sleep(LOG_TIME);
-    if (msgctl(msqid_info, IPC_STAT, &buffer_status)) {
-        perror("msgctl");
-        exit(1);
-    }
-    while (buffer_status.msg_qnum > 0) {
-      --buffer_status.msg_qnum;
-      if (msgrcv(msqid_info, &rbuf, sizeof(rbuf) - sizeof(long), 1, 0) < 0) {
-        perror("msgrcv");
-        exit(1);
-      } else {
-        requests_completed += rbuf.requests_completed;
-        producer_block_time += rbuf.producer_block_time;
-        consumer_block_time += rbuf.consumer_block_time;
-        producer_blocked += rbuf.producer_blocked;
-        consumer_blocked += rbuf.consumer_blocked;
-      }
-    }
-
-    if (VERBOSE) {
-      printf("P=%d, C=%d\n", p, c);
-      printf("Total requests completed %d\n", requests_completed);
-      printf("%d times producer_blocked %.2f%%\n", producer_blocked, (double)producer_blocked / requests_completed * 100.0);
-      printf("%d times consumer_blocked %.2f%%\n", consumer_blocked, (double)consumer_blocked / requests_completed * 100.0);
-      printf("Producers block time %.8f\n", producer_block_time);
-      printf("Consumers block time %.8f\n", consumer_block_time);
-    } else {
-      printf("%d,%d,%d,%.5f,%.2f,%.4f,%.4f,%.2f,%d,%d,%d,%.8f,%.8f\n", b, p, c, \
-              pt, rs, ct1, ct2, pi, \
-              requests_completed, producer_blocked, consumer_blocked, \
-              producer_block_time, consumer_block_time);
-    }
-
-		requests_completed = 0;
-    producer_block_time = 0.0;
-    consumer_block_time = 0.0;
-    count = producer_blocked = consumer_blocked = 0;
-
-  }
-
-  // End all child processes
-  for(i = 0; i < c; ++i) {
-    kill(consumer_pids[i], SIGKILL);
-  }
-
-  for(i = 0; i < p; ++i) {
-    kill(producer_pids[i], SIGKILL);
   }
 }
