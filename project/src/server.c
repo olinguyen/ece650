@@ -3,56 +3,26 @@
 #include<sys/socket.h>
 #include<netinet/in.h>
 
-void error(char *msg)
-{
+void error(char *msg) {
 	perror(msg);
 	exit(1);
 }
 
-/*
-void check(char *sch)
-{
-
-	int i = sch[0] - '0';
-	printf("Here is the message: %s\n",sch);
-
-	if(i == 1)
-	{
-		printf("The first letter is 1 \n");
-		// Command 1 pass this to the first producer buffer 
-	}
-	else if(i == 0)
-	{
-		printf("The first letter is 0 \n");
-		// command 2:  pass this to the second producer buffer 
- 	}
-	else
-	{
-		printf("Not allowed \n");
-	}
-
-}
-
-*/
-
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 
 	int sockfd, newsockfd, portno, clilen;
 	char buffer[256];
 	struct sockaddr_in serv_addr, cli_addr;
 	int n;
 
-	if (argc < 2)
-	{
+	if (argc < 2) {
 		fprintf(stderr,"ERROR, no port provided\n");
 		exit(1);
 	}
 
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
-	if (sockfd < 0)
-	{
+	if (sockfd < 0) {
 		error("ERROR opening socket");
 	}
 
@@ -64,43 +34,37 @@ int main(int argc, char *argv[])
 	serv_addr.sin_addr.s_addr = INADDR_ANY;
 	serv_addr.sin_port = htons(portno);
 
-	if (bind(sockfd, (struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0)
-	{
+	if (bind(sockfd, (struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) {
 		error("ERROR on binding");
 	}
 
-	listen(sockfd,5);
-	clilen = sizeof(cli_addr);
+  while (1) {
+    listen(sockfd,5);
+    clilen = sizeof(cli_addr);
 
-	newsockfd = accept(sockfd,(struct sockaddr *) &cli_addr, &clilen);
+    newsockfd = accept(sockfd,(struct sockaddr *) &cli_addr, &clilen);
 
-	if (newsockfd < 0)
-	{
-		error("ERROR on accept");
-	}
+    if (newsockfd < 0) {
+      error("ERROR on accept");
+    }
 
-	bzero(buffer,256);
+    bzero(buffer,256);
 
-	n = read(newsockfd,buffer,255);
-	//check(buffer);
+    n = read(newsockfd,buffer,255);
+    //check(buffer);
 
-	if (n < 0)
-	{
-		error("ERROR reading from socket");
-	}
-	
-	printf("Here is the message: %s\n",buffer);
+    if (n < 0) {
+      error("ERROR reading from socket");
+    }
 
-	n = write(newsockfd,"I got your message",18);
+    printf("Comand received: %s",buffer);
 
-	if (n < 0)
-	{
-		error("ERROR writing to socket");
-	}
+    n = write(newsockfd,"Response: 200 OK",18);
+
+    if (n < 0) {
+      error("ERROR writing to socket");
+    }
+
+  }
 	return 0;
 }
-
-
-
-
-

@@ -16,7 +16,7 @@ consumer: consumer.o consume_produce.o random_distribution.o
 producer: producer.o random_distribution.o consume_produce.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
-main: main.o random_distribution.o consume_produce.o
+main: main.o random_distribution.o consume_produce.o Vertex.o Graph.o Edge.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
 roadmap: roadmap.o Vertex.o Edge.o Graph.o

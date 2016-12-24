@@ -1,11 +1,11 @@
-#ifndef TYPES_H 
+#ifndef TYPES_H
 #define TYPES_H
 #include <pthread.h>
+#include <queue>
+#include "Vertex.h"
+#include "Edge.h"
 
 #define LOG_TIME 5
-
-typedef struct {
-} info_t;
 
 typedef struct {
   int request_size;
@@ -13,21 +13,28 @@ typedef struct {
   bool processed;
 } request_t;
 
-typedef struct msgbuf {
-    long    mtype;
-    int     remaining;
-    int     item;
-    bool    is_buffer_full;
-    char    buffer[1024];
+typedef enum {
+  ADD_VERTEX = 0,
+  ADD_EDGE = 1,
+  EDGE_EVENT = 2,
+  ROAD = 3,
+  TRIP = 4,
+  VERTEX = 5,
+  STORE = 6,
+  RETRIEVE = 7
+} command_e;
 
-    // info passed to from all child procs to main for logging
-    int requests_completed;
-    double consumer_block_time;
-    double producer_block_time;
-    int consumer_blocked;
-    int producer_blocked;
-
-} message_buf;
+typedef struct {
+  command_e type;
+  PointOfInterest poi;
+  string v_dst, v_src;
+  string e_dst, e_src;
+  bool direction;
+  double speed;
+  double length;
+  string label;
+  vertex_type vtype;
+} command_t;
 
 typedef struct {
   request_t* buffer; // the buffer itself
@@ -40,6 +47,7 @@ typedef struct {
   pthread_cond_t consume_cond;
 
   int id;
+	std::queue<command_t> command_queue;
 
 } SharedMemory;
 

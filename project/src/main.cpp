@@ -4,25 +4,24 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <signal.h>
+#include <semaphore.h>
 
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
-//#include <sys/msg.h>
 #include <sys/wait.h>
 
-#include "random_distribution.h"
 #include "consume_produce.h"
 #include "types.h"
+#include "Graph.h"
 
 #define MAX_BUFFER_SIZE 256
 #define MAX_CONSUMERS 256
 #define MAX_PRODUCERS 256
-#define MSQID 1337
 #define DEBUG 0
 #define VERBOSE 0
 
-#define STDEV 1.0
+#define GRAPH_FILENAME "graph.in"
 
 struct timeval transmit_start, transmit_end, \
 							 producer_block_start, producer_block_end, \
@@ -38,11 +37,8 @@ int b = 128; // buffer size
 int p = 1; // number of producers
 int c = 1; // number of consumers
 
-float pt = 0.0005; // prob. dist. for the random time Pt that the producers must wait between request productions
-float rs = 50.0; // prob. dist. of the request size
-float ct1 = 0.05; // prob. dist. for the random time Ct1 that the consumers take with probability pi
-float ct2 = 0.005; // prob. dist. for the random time Ct2 that the consumers take with probability 1-pi
-float pi = 0.5; // probability pi
+sem_t empty; // remaining space on buffer
+sem_t full; // items produced
 
 request_t buffer[MAX_BUFFER_SIZE];
 int requests_completed = 0;
@@ -50,43 +46,39 @@ int producer_blocked = 0;
 int consumer_blocked = 0;
 int count = 0;
 
+Graph g;
+
 void producer_consumer_thread(int num_producers, int num_consumers, int b);
 void* ConsumerThread(void *a);
 void* ProducerThread(void *a);
 void ConsumerProcess();
 void ProducerProcess();
 
+void process_command(command_t cmd); 
+command_t parse_command(string input_string);
+vector<string> split(const string& str, const string& delim);
 
 int main(int argc, char** argv) {
   srandom(time(NULL));
   if (argc < 3) {
     printf("Invalid number of arguments.\n");
+    printf("Usage: ./main <port> <runtime> <buffer size> <num_producers <num_consumers>\n");
   } else {
 
     t = strtol(argv[1], NULL, 10); // total time of execution
     b = strtol(argv[2], NULL, 10); // buffer size
     p = strtol(argv[3], NULL, 10); // number of producers
     c = strtol(argv[4], NULL, 10); // number of consumers
-    pt = atof(argv[5]) ;// prob. dist. for the random time Pt that the producers must wait between request productions
-    rs = atof(argv[6]); // prob. dist. of the request size
-    ct1 = atof(argv[7]); // prob. dist. for the random time Ct1 that the consumers take with probability pi
-    ct2 = atof(argv[8]); // prob. dist. for the random time Ct2 that the consumers take with probability 1-pi
-    pi = atof(argv[9]); // probability pi
 
     struct timeval program_start, program_end;
     gettimeofday(&program_start, NULL);
 
     producer_consumer_thread(p, c, b);
-    //producer_consumer_process(b);
 
     gettimeofday(&program_end, NULL);
 
     float total_time = ((program_end.tv_sec + program_end.tv_usec / 1000000.0) \
         - (program_start.tv_sec + program_start.tv_usec / 1000000.0));
-    float transmit_time = ((transmit_end.tv_sec + transmit_end.tv_usec / 1000000.0) \
-        - (transmit_start.tv_sec + transmit_start.tv_usec / 1000000.0));
-    //printf("%d,%d,%.6f,%.6f,%.6f\n", \
-      n, b, total_time, transmit_time, total_time - transmit_time);
   }
 
   return 0;
@@ -103,6 +95,9 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
   sharedmem.produce_cond = PTHREAD_COND_INITIALIZER;
   sharedmem.consume_cond = PTHREAD_COND_INITIALIZER;
 
+  sem_init(&empty, 0, b);
+  sem_init(&full, 0, 0);
+
   for (i = 0; i < MAX_BUFFER_SIZE; ++i) {
     buffer[i].processed = true;
   }
@@ -117,30 +112,15 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
     pthread_create(&consumers_id[i], NULL, ConsumerThread, (void*)&sharedmem);
   }
 
-  /*
-  printf("b,p,c,pt,rs,ct1,ct2,pi,requests_completed,"
-         "producer_blocked,consumer_blocked,producer_block_time,"
-         "consumer_block_time\n");
-  */
   int num_iterations = t / LOG_TIME;
 
 	// periodically print info
 	for (i = 0; i < num_iterations; ++i) {
 		sleep(LOG_TIME);
 
-    if (VERBOSE) {
-      printf("%d, P=%d, C=%d\n", i, num_producers, num_consumers);
-      printf("Total requests completed %d\n", requests_completed);
-      printf("%d times producer_blocked %.2f%%\n", producer_blocked, (double)producer_blocked / requests_completed * 100.0);
-      printf("%d times consumer_blocked %.2f%%\n", consumer_blocked, (double)consumer_blocked / requests_completed * 100.0);
-      printf("Producers block time %.8f\n", producer_block_time);
-      printf("Consumers block time %.8f\n", consumer_block_time);
-    } else {
-      printf("%d,%d,%d,%.5f,%.2f,%.4f,%.4f,%.2f,%d,%d,%d,%.8f,%.8f\n", b, p, c, \
-              pt, rs, ct1, ct2, pi, \
-              requests_completed, producer_blocked, consumer_blocked, \
-              producer_block_time, consumer_block_time);
-    }
+		printf("%d,%d,%d,%d,%d,%d,%.8f,%.8f\n", b, p, c, \
+					requests_completed, producer_blocked, consumer_blocked, \
+					producer_block_time, consumer_block_time);
 
 		requests_completed = 0;
     producer_block_time = 0.0;
@@ -149,8 +129,20 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
 	}
 }
 
+void* CommandHandlerThread(void *a)
+{
+#if DEBUG
+	printf("Command handler thread started!\n");
+#endif
+	while (1) {
+
+
+	}
+}
+
 void* ProducerThread(void *a)
 {
+  static int in = 0;
   gettimeofday(&transmit_start, NULL);
   SharedMemory* sharedmem = (SharedMemory*)a;
   int id = sharedmem->id;
@@ -159,18 +151,23 @@ void* ProducerThread(void *a)
 #endif
 
   while (1) {
+    // wait for command to arrive
+    sem_wait(&full);
+		// pick next command to process from command queue
+		command_t current_command = sharedmem->command_queue.front();
+		sharedmem->command_queue.pop();
+		
+		process_command(current_command);	
+
+    sem_post(&empty);
+
     count++;
-    double request_wait_time = normal_distribution(pt * 10000, STDEV) / 10000.0;
-#if DEBUG
-    //printf("[producer]...waiting %.4f before next request\n", request_wait_time);
-#endif
-    sleep(request_wait_time);
 
     bool is_blocked = false;
     gettimeofday(&producer_blocks_start[id], NULL);
 
     // size of request to be transmitted (cannot exceed buffer size)
-    int request_size = (int) normal_distribution(rs, STDEV * 4);
+    int request_size = 1;
 
     // Block if buffer is full
     pthread_mutex_lock(&sharedmem->lock);
@@ -204,7 +201,6 @@ void* ProducerThread(void *a)
     sharedmem->buffer[buffer_idx].request_size = request_size;
     sharedmem->current_size += request_size;
 #if DEBUG
-    printf("[producer]...generating request size %d\n", request_size);
     printf("[producer]...queue status %d/%d bytes\n", sharedmem->current_size, sharedmem->buffer_size);
 #endif
     // increment buffer by request size
@@ -251,7 +247,7 @@ void* ConsumerThread(void *a)
       is_processed = sharedmem->buffer[buffer_idx].processed;
     }
 
-		consume(ct1, ct2, pi, STDEV);
+		// consume(ct1, ct2, pi, STDEV);
     sharedmem->buffer[buffer_idx].processed = true;
     sharedmem->current_size -= sharedmem->buffer[buffer_idx].request_size;
 #if DEBUG
@@ -264,4 +260,65 @@ void* ConsumerThread(void *a)
     pthread_cond_signal(&sharedmem->produce_cond);
     pthread_mutex_unlock(&sharedmem->lock);
   }
+}
+
+void process_command(command_t cmd) {
+  command_e type = cmd.type;  
+  PointOfInterest poi = cmd.poi;
+  Vertex v_src = g.vertex(cmd.v_src);
+  Vertex v_dst = g.vertex(cmd.v_dst);
+  vertex_type vtype = cmd.vtype;
+  string vname = cmd.label;
+  bool direction = cmd.direction;
+  double speed = cmd.speed;
+  double length = cmd.length;
+  vector<int> output;
+
+  switch (type) {
+    case ADD_VERTEX:
+      g.addVertex(vtype, vname);
+      break;
+    case ADD_EDGE:
+      g.addEdge(v_src, v_dst, direction, speed, length);
+      break;
+    case TRIP:
+      output = g.trip(v_src, v_dst);
+      break;
+    case VERTEX:
+      g.vertex(poi);
+      break;
+    case STORE:
+      g.store(GRAPH_FILENAME);
+      break;
+    case RETRIEVE:
+      g.retrieve(GRAPH_FILENAME);
+      break;
+    case EDGE_EVENT:
+      break;
+    case ROAD:
+      break;
+    default:
+      break;
+  }
+}
+
+
+vector<string> split(const string& str, const string& delim) {
+	vector<string> tokens;
+	size_t prev = 0, pos = 0;
+	do {
+		pos = str.find(delim, prev);
+		if (pos == string::npos) pos = str.length();
+		string token = str.substr(prev, pos-prev);
+		if (!token.empty()) tokens.push_back(token);
+		prev = pos + delim.length();
+	}
+	while (pos < str.length() && prev < str.length());
+	return tokens;
+}
+
+
+command_t parse_command(string input_string) {
+	string delimiter = " ";		
+	vector<string> split_string = split(input_string, delimiter);	
 }
