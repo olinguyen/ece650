@@ -3,12 +3,12 @@ LIBS = -lm -lpthread
 INCPATH = ./include
 CFLAGS = -g -Wall -I$(INCPATH) -Wno-reorder -std=c++11#-std=c99
 
-OBJ = consumer.o producer.o test.o Vertex.o Edge.o Graph.o roadmap.o
+OBJ = consumer.o producer.o test.o Vertex.o Edge.o Graph.o roadmap.o Client.o
 
 %.o: src/%*.cpp*
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-all: main 
+all: main Client
 
 consumer: consumer.o consume_produce.o random_distribution.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
@@ -29,6 +29,9 @@ edge: Edge.o Vertex.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
 graph: Graph.o Edge.o Vertex.o
+	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
+
+Client: Client.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
 test: test.o random_distribution.o

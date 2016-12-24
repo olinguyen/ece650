@@ -14,6 +14,12 @@ typedef struct {
 } request_t;
 
 typedef enum {
+	GRAPH = 0,
+	PLAN = 1,
+	INVALID = 2
+} cmd_type;
+
+typedef enum {
   ADD_VERTEX = 0,
   ADD_EDGE = 1,
   EDGE_EVENT = 2,
@@ -25,7 +31,8 @@ typedef enum {
 } command_e;
 
 typedef struct {
-  command_e type;
+	cmd_type type;
+  command_e cmd;
   PointOfInterest poi;
   string v_dst, v_src;
   string e_dst, e_src;
@@ -48,6 +55,7 @@ typedef struct {
 
   int id;
 	std::queue<command_t> command_queue;
+	std::queue<string> tcp_queue;
 
 } SharedMemory;
 

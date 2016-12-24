@@ -10,6 +10,9 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/wait.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <strings.h>
 
 #include "consume_produce.h"
 #include "types.h"
@@ -20,6 +23,7 @@
 #define MAX_PRODUCERS 256
 #define DEBUG 0
 #define VERBOSE 0
+#define LOG 0
 
 #define GRAPH_FILENAME "graph.in"
 
@@ -36,6 +40,7 @@ int t = 50; // total time of execution
 int b = 128; // buffer size
 int p = 1; // number of producers
 int c = 1; // number of consumers
+int port = 8000; // port number
 
 sem_t empty; // remaining space on buffer
 sem_t full; // items produced
@@ -51,24 +56,29 @@ Graph g;
 void producer_consumer_thread(int num_producers, int num_consumers, int b);
 void* ConsumerThread(void *a);
 void* ProducerThread(void *a);
+void* CommandHandlerThread(void *a);
 void ConsumerProcess();
 void ProducerProcess();
 
 void process_command(command_t cmd); 
 command_t parse_command(string input_string);
 vector<string> split(const string& str, const string& delim);
+void error(char *msg);
 
 int main(int argc, char** argv) {
   srandom(time(NULL));
-  if (argc < 3) {
+  if (argc < 2) {
     printf("Invalid number of arguments.\n");
     printf("Usage: ./main <port> <runtime> <buffer size> <num_producers <num_consumers>\n");
   } else {
 
-    t = strtol(argv[1], NULL, 10); // total time of execution
-    b = strtol(argv[2], NULL, 10); // buffer size
-    p = strtol(argv[3], NULL, 10); // number of producers
-    c = strtol(argv[4], NULL, 10); // number of consumers
+		port = atoi(argv[1]);
+		/*
+    t = strtol(argv[2], NULL, 10); // total time of execution
+    b = strtol(argv[3], NULL, 10); // buffer size
+    p = strtol(argv[4], NULL, 10); // number of producers
+    c = strtol(argv[5], NULL, 10); // number of consumers
+		*/
 
     struct timeval program_start, program_end;
     gettimeofday(&program_start, NULL);
@@ -103,6 +113,10 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
   }
 
   pthread_t producers_id[MAX_CONSUMERS], consumers_id[MAX_PRODUCERS];
+	pthread_t handler_id;
+
+	pthread_create(&handler_id, NULL, CommandHandlerThread, (void*)&sharedmem);
+
   for(i = 0; i < num_producers; ++i) {
     sharedmem.id = i;
     pthread_create(&producers_id[i], NULL, ProducerThread, (void*)&sharedmem);
@@ -111,16 +125,15 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
     sharedmem.id = i;
     pthread_create(&consumers_id[i], NULL, ConsumerThread, (void*)&sharedmem);
   }
-
   int num_iterations = t / LOG_TIME;
 
 	// periodically print info
 	for (i = 0; i < num_iterations; ++i) {
 		sleep(LOG_TIME);
 
-		printf("%d,%d,%d,%d,%d,%d,%.8f,%.8f\n", b, p, c, \
-					requests_completed, producer_blocked, consumer_blocked, \
-					producer_block_time, consumer_block_time);
+#if LOG
+		printf("%d,%d,%d,%d\n", b, p, c, requests_completed)
+#endif
 
 		requests_completed = 0;
     producer_block_time = 0.0;
@@ -131,13 +144,67 @@ void producer_consumer_thread(int num_consumers, int num_producers, int b) {
 
 void* CommandHandlerThread(void *a)
 {
+	printf("Server started. Listening on port %d...\n", port);
 #if DEBUG
 	printf("Command handler thread started!\n");
 #endif
-	while (1) {
+	int sockfd, newsockfd;
+	socklen_t clilen;
+	char buffer[256];
+	struct sockaddr_in serv_addr, cli_addr;
+	int n;
 
+	g.retrieve(GRAPH_FILENAME);
 
+  SharedMemory* sharedmem = (SharedMemory*)a;
+
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+	if (sockfd < 0) {
+		error("ERROR opening socket");
 	}
+
+	bzero((char *) &serv_addr, sizeof(serv_addr));
+
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_addr.s_addr = INADDR_ANY;
+	serv_addr.sin_port = htons(port);
+
+	if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+		error("ERROR on binding");
+	}
+
+  while (1) {
+    listen(sockfd, 5);
+    clilen = sizeof(cli_addr);
+
+    newsockfd = accept(sockfd,(struct sockaddr *) &cli_addr, &clilen);
+
+    if (newsockfd < 0) {
+      error("ERROR on accept");
+    }
+
+    bzero(buffer,256);
+
+    n = read(newsockfd,buffer,255);
+    //check(buffer);
+
+    if (n < 0) {
+      error("ERROR reading from socket");
+    }
+
+		sem_wait(&empty);
+    printf("Command received: %s", buffer);
+		string input_string(buffer);
+		sharedmem->tcp_queue.push(input_string);
+		sem_post(&full);
+
+    n = write(newsockfd, "Response: 200 OK", 18);
+
+    if (n < 0) {
+      error("ERROR writing to socket");
+    }
+  }
 }
 
 void* ProducerThread(void *a)
@@ -153,12 +220,12 @@ void* ProducerThread(void *a)
   while (1) {
     // wait for command to arrive
     sem_wait(&full);
-		// pick next command to process from command queue
-		command_t current_command = sharedmem->command_queue.front();
-		sharedmem->command_queue.pop();
-		
-		process_command(current_command);	
 
+		// parse string command, validate
+		cout << "Producer validating command..." << endl;
+		string current_string = sharedmem->tcp_queue.front();	
+		command_t current_command = parse_command(current_string);
+		// forward command to consumers
     sem_post(&empty);
 
     count++;
@@ -171,28 +238,14 @@ void* ProducerThread(void *a)
 
     // Block if buffer is full
     pthread_mutex_lock(&sharedmem->lock);
-    while(sharedmem->current_size + request_size >= sharedmem->buffer_size) {
-      if (!is_blocked) {
-        ++producer_blocked;
-      }
-      is_blocked = true;
+    while(sharedmem->command_queue.size() > sharedmem->buffer_size) {
       pthread_cond_wait(&sharedmem->produce_cond, &sharedmem->lock);
     }
     gettimeofday(&producer_blocks_end[id], NULL);
-		if (is_blocked) {
-			producer_block_time += ((producer_blocks_end[id].tv_sec + producer_blocks_end[id].tv_usec / 1000000.0) \
-					- (producer_blocks_start[id].tv_sec + producer_blocks_start[id].tv_usec / 1000000.0));
-		}
 
     int buffer_idx = sharedmem->buffer_count % sharedmem->buffer_size;
-    // place requests in available spot only
-    bool is_processed = sharedmem->buffer[buffer_idx].processed;
-    while (!is_processed) {
-      buffer_idx = (buffer_idx + 1) % sharedmem->buffer_size;
-      is_processed = sharedmem->buffer[buffer_idx].processed;
-    }
-    sharedmem->buffer[buffer_idx].value = rand();
-    sharedmem->buffer[buffer_idx].processed = false;
+		sharedmem->command_queue.push(current_command);
+
 #if DEBUG
     //printf("...%d Produced:%d\n", sharedmem->buffer_count, \
         sharedmem->buffer[sharedmem->buffer_count % sharedmem->buffer_size]);
@@ -224,35 +277,21 @@ void* ConsumerThread(void *a)
     gettimeofday(&consumer_blocks_start[id], NULL);
     // block if everything was consumed
     pthread_mutex_lock(&sharedmem->lock);
-    while(sharedmem->current_size == 0) {
-      if (!is_blocked) {
-        ++consumer_blocked;
-      }
-      is_blocked = true;
+    while(sharedmem->command_queue.size() == 0) {
       pthread_cond_wait(&sharedmem->consume_cond, &sharedmem->lock);
     }
     gettimeofday(&consumer_blocks_end[id], NULL);
 
-		if (is_blocked) {
-			consumer_block_time += ((consumer_blocks_end[id].tv_sec + consumer_blocks_end[id].tv_usec / 1000000.0) \
-					- (consumer_blocks_start[id].tv_sec + consumer_blocks_start[id].tv_usec / 1000000.0));
-		}
-
     int buffer_idx = sharedmem->buffer_count % sharedmem->buffer_size;
     // get a request that was not processed yet
-    bool is_processed = sharedmem->buffer[buffer_idx].processed;
-    while (is_processed) {
-			//printf("%d looking for unprocessed request\n", buffer_idx);
-      buffer_idx = (buffer_idx + 1) % sharedmem->buffer_size;
-      is_processed = sharedmem->buffer[buffer_idx].processed;
-    }
 
-		// consume(ct1, ct2, pi, STDEV);
-    sharedmem->buffer[buffer_idx].processed = true;
+		// pick next command to process from command queue
+		cout << "Consumer processing command..." << endl;
+		command_t current_command = sharedmem->command_queue.front();
+		sharedmem->command_queue.pop();
+		process_command(current_command);	
+
     sharedmem->current_size -= sharedmem->buffer[buffer_idx].request_size;
-#if DEBUG
-  //  printf("...%d Consumed: %d\n", sharedmem->buffer_count, consumed);
-#endif
 
     --sharedmem->buffer_count;
     ++requests_completed;
@@ -263,7 +302,8 @@ void* ConsumerThread(void *a)
 }
 
 void process_command(command_t cmd) {
-  command_e type = cmd.type;  
+  command_e command = cmd.cmd;  
+	cmd_type type = cmd.type;	
   PointOfInterest poi = cmd.poi;
   Vertex v_src = g.vertex(cmd.v_src);
   Vertex v_dst = g.vertex(cmd.v_dst);
@@ -274,7 +314,11 @@ void process_command(command_t cmd) {
   double length = cmd.length;
   vector<int> output;
 
-  switch (type) {
+	if (type == INVALID) {
+		return;
+	}
+
+  switch (command) {
     case ADD_VERTEX:
       g.addVertex(vtype, vname);
       break;
@@ -293,15 +337,11 @@ void process_command(command_t cmd) {
     case RETRIEVE:
       g.retrieve(GRAPH_FILENAME);
       break;
-    case EDGE_EVENT:
-      break;
-    case ROAD:
-      break;
     default:
+			cout << "Invalid command sent" << endl;
       break;
   }
 }
-
 
 vector<string> split(const string& str, const string& delim) {
 	vector<string> tokens;
@@ -317,8 +357,32 @@ vector<string> split(const string& str, const string& delim) {
 	return tokens;
 }
 
-
 command_t parse_command(string input_string) {
 	string delimiter = " ";		
+	command_t command;
 	vector<string> split_string = split(input_string, delimiter);	
+	string command_type = split_string[0];
+	if (command_type.compare("graph") == 0) {
+		command.type = GRAPH;	
+		string management_type = split_string[1];
+		if (management_type.compare("add_vertex")) {
+		} else if (management_type.compare("add_edge")) {
+		} else if (management_type.compare("edge_event")) {
+		} else {
+			command.type = INVALID;
+		}
+	} else if (command_type.compare("plan") == 0) {
+		command.type = PLAN;
+		string param1 = split_string[1];
+		string param2 = split_string[2];
+		command.cmd = TRIP;	
+	} else {
+		command.type = INVALID;
+	}
+	return command;
+}
+
+void error(char *msg) {
+	perror(msg);
+	exit(1);
 }
